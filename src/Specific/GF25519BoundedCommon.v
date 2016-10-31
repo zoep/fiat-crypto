@@ -112,7 +112,7 @@ Definition bounds : list (Z * Z)
       [b_of 25; b_of 26; b_of 25; b_of 26; b_of 25; b_of 26; b_of 25; b_of 26; b_of 25; b_of 26].
 Definition wire_digit_bounds_exp : list Z
   := Eval compute in
-      List.repeat 32 7 ++ [31].
+      [31] ++ List.repeat 32 7.
 Definition wire_digit_bounds : list (Z * Z)
   := Eval compute in List.map (fun e => (0,2^e-1)%Z) wire_digit_bounds_exp.
 

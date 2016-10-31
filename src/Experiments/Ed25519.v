@@ -126,6 +126,10 @@ Definition feEnc (x : GF25519BoundedCommon.fe25519) : Word.word 255 :=
           (Word.combine (ZNWord 32 x4)
             (Word.combine (ZNWord 32 x5)
               (Word.combine (ZNWord 32 x6) (ZNWord 31 x7))))))).
+Check GF25519Bounded.unpack.
+Print GF25519BoundedCommon.wire_digits.
+Eval compute in GF25519.wire_widths.
+Eval compute in (Tuple.from_list 8 GF25519.wire_widths _).
 
 Definition feDec (w : Word.word 255) : option GF25519BoundedCommon.fe25519 :=
   let w0 := Word.split1 32 _ w in
@@ -142,14 +146,14 @@ Definition feDec (w : Word.word 255) : option GF25519BoundedCommon.fe25519 :=
   let a5 := Word.split2 32 _ a4 in
   let w6 := Word.split1 32 _ a5 in
   let w7 := Word.split2 32 _ a5 in
-  let result := (GF25519Bounded.unpack (GF25519BoundedCommon.word32_to_unbounded_word w0,
-                                        GF25519BoundedCommon.word32_to_unbounded_word w1,
-                                        GF25519BoundedCommon.word32_to_unbounded_word w2,
-                                        GF25519BoundedCommon.word32_to_unbounded_word w3,
-                                        GF25519BoundedCommon.word32_to_unbounded_word w4,
-                                        GF25519BoundedCommon.word32_to_unbounded_word w5,
+  let result := (GF25519Bounded.unpack (GF25519BoundedCommon.word31_to_unbounded_word w7,
                                         GF25519BoundedCommon.word32_to_unbounded_word w6,
-                                        GF25519BoundedCommon.word31_to_unbounded_word w7)) in
+                                        GF25519BoundedCommon.word32_to_unbounded_word w5,
+                                        GF25519BoundedCommon.word32_to_unbounded_word w4,
+                                        GF25519BoundedCommon.word32_to_unbounded_word w3,
+                                        GF25519BoundedCommon.word32_to_unbounded_word w2,
+                                        GF25519BoundedCommon.word32_to_unbounded_word w1,
+                                        GF25519BoundedCommon.word32_to_unbounded_word w0)) in
   if GF25519BoundedCommon.w64eqb (GF25519Bounded.ge_modulus result) (GF25519BoundedCommon.ZToWord64 1)
   then None else (Some result).
 
@@ -834,6 +838,7 @@ Let ERepB : Erep.
   let rB := (eval vm_compute in (proj1_sig (EToRep B))) in
   exists rB. cbv [GF25519BoundedCommon.eq ModularBaseSystem.eq Pre.onCurve]. vm_decide_no_check.
 Defined.
+(* TODO(jgross) : since the wire bounds were fixed, the above [Defined] takes way too long and uses lots of memory (runs out if I have a web browser open). *)
 
 Let ERepB_correct : ExtendedCoordinates.Extended.eq (field:=GF25519Bounded.field25519) ERepB (EToRep B).
   vm_decide_no_check.
