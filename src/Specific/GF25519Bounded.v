@@ -182,14 +182,14 @@ Definition sqrt_m1W : fe25519W :=
   Eval vm_compute in fe25519ZToW sqrt_m1.
 
 Definition GF25519sqrt x : GF25519.fe25519 :=
-  dlet powx := powW (fe25519ZToW x) (chain GF25519.sqrt_ec) in
-  GF25519.sqrt (fe25519WToZ powx) (fe25519WToZ (mulW powx powx)) x.
+  dlet powx := GF25519.pow x (chain GF25519.sqrt_ec) in
+  GF25519.sqrt powx (GF25519.mul powx powx) x.
 
 Definition sqrtW_sig
   : { sqrtW | iunop_correct_and_bounded sqrtW GF25519sqrt }.
 Proof.
   eexists.
-  unfold GF25519.sqrt.
+  unfold GF25519sqrt, GF25519.sqrt.
   intros; set_evars; rewrite <- (fun pf => proj1 (powW_correct_and_bounded _ _ pf)) by assumption; subst_evars.
   match goal with
   | [ |- context G[dlet x := fe25519WToZ ?v in @?f x] ]
@@ -202,6 +202,10 @@ Proof.
     Focus 2. {
       apply Proper_Let_In_nd_changebody_eq; intros.
       set_evars.
+      match goal with (* unfold the first dlet ... in, but only if it's binding a var *)
+      | [ |- ?x = dlet y := fe25519WToZ ?z in ?f ]
+        => is_var z; change (x = match fe25519WToZ z with y => f end)
+      end.
       change sqrt_m1 with (fe25519WToZ sqrt_m1W).
       rewrite <- (fun X Y => proj1 (mulW_correct_and_bounded a a X Y)),
       <- (fun X Y => proj1 (mulW_correct_and_bounded sqrt_m1W a X Y)), <- eqbW_correct, (pull_bool_if fe25519WToZ)
@@ -236,7 +240,7 @@ Definition sqrtW (f : fe25519W) : fe25519W :=
     let '(f0, f1, f2, f3, f4, f5, f6, f7, f8, f9) := f in
     proj1_sig sqrtW_sig (f0, f1, f2, f3, f4, f5, f6, f7, f8, f9).
 
-Lemma sqrtW_correct_and_bounded : iunop_correct_and_bounded sqrtW GF25519.sqrt.
+Lemma sqrtW_correct_and_bounded : iunop_correct_and_bounded sqrtW GF25519sqrt.
 Proof.
   intro f.
   set (f' := f).
@@ -310,7 +314,7 @@ Lemma pow_correct (f : fe25519) chain : proj1_fe25519 (pow f chain) = GF25519.po
 Proof. op_correct_t pow (powW_correct_and_bounded chain). Qed.
 Lemma inv_correct (f : fe25519) : proj1_fe25519 (inv f) = GF25519.inv (proj1_fe25519 f).
 Proof. op_correct_t inv invW_correct_and_bounded. Qed.
-Lemma sqrt_correct (f : fe25519) : proj1_fe25519 (sqrt f) = GF25519.sqrt (proj1_fe25519 f).
+Lemma sqrt_correct (f : fe25519) : proj1_fe25519 (sqrt f) = GF25519sqrt (proj1_fe25519 f).
 Proof. op_correct_t sqrt sqrtW_correct_and_bounded. Qed.
 
 Import Morphisms.
