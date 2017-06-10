@@ -93,11 +93,79 @@ Section with_state.
 End with_state.
 
 (* N.B., Coq doesn't yet print this *)
-Notation "'loop' _{ fuel } ( state1 .. staten = initial ) 'via' ( continue , break ) {{ body }} ; rest"
+Notation "'loop' _{ fuel } ( state1 .. staten = initial ) 'labels' ( continue , break ) {{ body }} ; rest"
   := (@loop_cps _ fuel initial
                 (fun state1 => .. (fun staten => id (fun T continue break => body)) .. )
                 _ (fun state1 => .. (fun staten => rest) .. ))
        (at level 200, state1 binder, staten binder, rest at level 10,
-        format "'[v  ' 'loop' _{ fuel }  ( state1 .. staten  =  initial )  'via'  ( continue ,  break )  {{ '//' body ']' '//' }} ; '//' rest").
+        format "'[v  ' 'loop' _{ fuel }  ( state1 .. staten  =  initial )  'labels'  ( continue ,  break )  {{ '//' body ']' '//' }} ; '//' rest").
 
-Check loop _{ 10 } (x = 0) via (continue, break) {{ continue (x + 1) }} ; x.
+Check loop _{ 10 } (x = 0) labels (continue, break) {{ continue (x + 1) }} ; x.
+                 
+Compute
+  loop _{ 1234 } ('(i, a) = (0, 0)) labels (continue, break)
+  {{
+      if i <? 10
+      then 
+        continue (i + 1, a+1)
+      else
+        break (0, a)
+  }};
+  a.
+
+(*
+  for ( i = s; i < f; i++) updating (P = zero) labels (continue, break)
+  {{
+      continue (P+P)
+  }};
+  P.
+
+  for ( i = s; i < f; i++) updating (P = zero) labels (continue)
+  {{
+      continue (P+P)
+  }};
+  P.
+*)
+
+(*
+table of xi*(32^i)*B
+        for 
+        0 <= xi <= 8 (with sign flips, -8 <= xi <= 8)
+        0 <= i <= 31
+*)
+
+Require Import Crypto.Util.Tuple.
+Print Tuple.repeat.
+Section ScalarMult.
+  Context (G:Type) (zero:G).
+  Context (k s w:nat). (* k steps of s stripes of w-bit chunks *)
+  Let l : nat := k * s * w.
+
+
+Check
+  loop _{k} ('(i, P_s) = (0, Tuple.repeat zero s)) labels (continue, break)
+  {{ if negb (i <? k) then break (i, P_s) else
+      let i' := i + s in
+      
+      loop _{s} (j = 0) labels (continue, break)
+           {{ if negb (j <? s) then break (j) else
+                let j' := j + s in
+               continue (j + 1)
+           }};
+      continue (i', P_s)
+  }};
+  P_s.
+
+Check
+  loop _{k} ('(i, P_s) = (0, Tuple.repeat zero s)) labels (continue, break)
+  {{ if negb (i <? k) then break (i, P_s) else
+      let i' := i + s in
+      
+      loop _{s} ('(j, x) = (0,0)) labels (continue, break)
+           {{ if negb (j <? s) then break (j, x) else
+                let j' := j + s in
+               continue (j +1, x)
+           }};
+      continue (i', P_s)
+  }};
+  P_s.
