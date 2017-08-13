@@ -30,7 +30,7 @@ Variant HandshakeType :=
 (*
 Obligation Tactic := program_simpl; omega.
 Program Definition encode (t:HandshakeType) : uint8 :=
-match t with 
+match t with
 | client_hello => 1
 | server_hello => 2
 | new_session_ticket => 4

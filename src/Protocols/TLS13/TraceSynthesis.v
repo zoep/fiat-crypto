@@ -211,6 +211,35 @@ Section Example_1_Negotiation_Synthesis.
   Defined.
 End Example_1_Negotiation_Synthesis.
 
-Section Example_2_ServerNegotiateDH.
+Import EqNotations.
 
+Section Example_2_ServerNegotiateDH.
+  Context (decision_dataT : Type)
+          (using_diffie_hellman : decision_dataT -> bool).
+
+  Definition server_negotiation_DH_spec
+             (global_data : decision_dataT)
+             (trace : list (Handshake (*input*) * Handshake (*output*))) : Prop
+    := forall io, List.In io trace
+                  -> forall length hello,
+        snd io = {| Handshake.msg_type := server_hello;
+                    Handshake.length := length;
+                    Handshake.payload := hello |}
+        -> using_diffie_hellman global_data = true
+           <-> exists extension,
+            List.In extension (ServerHello.extensions hello)
+            /\ Extension.extension_type _ extension = key_share.
+
+  Definition server_negotiation_DH_spec'
+             (global_data : decision_dataT)
+             (trace : list (Handshake (*input*) * Handshake (*output*))) : Prop
+    := forall io, List.In io trace
+                  -> forall length hello,
+        snd io = {| Handshake.msg_type := server_hello;
+                    Handshake.length := length;
+                    Handshake.payload := hello |}
+        -> using_diffie_hellman global_data = true
+           <-> exists extension,
+            List.In extension (ServerHello.extensions hello)
+            /\ Extension.extension_type _ extension = supported_groups.
 End Example_2_ServerNegotiateDH.
