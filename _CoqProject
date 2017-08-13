@@ -214,6 +214,7 @@ src/LegacyArithmetic/Double/Proofs/ShiftRightDoubleWordImmediate.v
 src/LegacyArithmetic/Double/Proofs/SpreadLeftImmediate.v
 src/Primitives/EdDSARepChange.v
 src/Primitives/MxDHRepChange.v
+src/Protocols/TLS13/Structures.v
 src/Spec/CompleteEdwardsCurve.v
 src/Spec/Ed25519.v
 src/Spec/EdDSA.v
