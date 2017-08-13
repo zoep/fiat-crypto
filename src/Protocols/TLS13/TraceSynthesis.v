@@ -1,3 +1,4 @@
+Require Import Coq.Lists.List.
 Require Import Crypto.Spec.Trace.
 Require Import Crypto.Protocols.TLS13.Structures.
 Require Import Crypto.Util.Decidable.
@@ -209,3 +210,7 @@ Section Example_1_Negotiation_Synthesis.
     exact unit.
   Defined.
 End Example_1_Negotiation_Synthesis.
+
+Section Example_2_ServerNegotiateDH.
+
+End Example_2_ServerNegotiateDH.
