@@ -2,6 +2,7 @@ Require Import Coq.Lists.List.
 Require Import Crypto.Util.Decidable.
 Require Import Crypto.Util.Tactics.DestructHead.
 Require Import Crypto.Util.Tactics.SpecializeBy.
+Require Import Crypto.Util.Tactics.GetGoal.
 
 Section Trace.
   Context {state input output : Type}
@@ -66,10 +67,16 @@ Qed.
 
 Section Example_1_Negotiation.
   Definition trace_satisfies_negotiation_spec
-             (trace : list (list nat (*input*) * nat (*output*))) : Prop
+             (trace : list (list nat (*input*) * option nat (*output*))) : Prop
     := output_in_list_and_previous_input_matching_satisfies
          (fun output => True)
-         (fun i o => i <> nil -> List.In o i)
+         (fun i o => i <> nil -> exists v, o = Some v -> List.In v i)
+         trace.
+  Definition trace_satisfies_negotiation_spec_error
+             (trace : list (list nat (*input*) * option nat (*output*))) : Prop
+    := output_in_list_and_previous_input_matching_satisfies
+         (fun output => True)
+         (fun i o => i = nil -> o = None)
          trace.
 End Example_1_Negotiation.
 
@@ -107,33 +114,111 @@ Section Example_1_Negotiation_Synthesis.
                    | progress simpl ]. }
   Qed.
 
+  Lemma handle_membership_with_first {T} (default : T)
+    : forall i : list T, i <> nil -> In (hd default i) i.
+  Proof. intros [|? ?] ?; simpl; auto; congruence. Qed.
+
+  Lemma handle_membership_with_first_alt {T} (default : T) handler
+    : (forall i : list T, i <> nil -> handler i = Some (hd default i))
+      -> forall i : list T, i <> nil -> exists v, handler i = Some v -> In v i.
+  Proof.
+    intros H ls Hnil; specialize (H ls Hnil); rewrite H; clear H.
+    exists (hd default ls); intros _.
+    destruct ls; simpl; auto; congruence.
+  Qed.
+
+  Lemma handle_decidable_equality {T} (val : T) {Hdec : forall v, Decidable (v = val)} {U} (retv : U) handler
+    : forall v : T, v = val -> (if dec (v = val) then retv else handler v) = retv.
+  Proof.
+    intros; subst.
+    edestruct dec; congruence.
+  Qed.
+
+  Ltac start :=
+    repeat match goal with
+           | [ |- sigT _ ] => eexists
+           | [ |- sig _ ] => eexists
+           end.
+  Ltac hnf_under_and G :=
+    match G with
+    | ?A /\ ?B
+      => hnf_under_and A; hnf_under_and B
+    | _ => let G' := (eval hnf in G) in
+           change G with G'
+    end.
+  Ltac hnf_under_and_goal :=
+    let G := get_goal in
+    hnf_under_and G.
+  Ltac start_unfold :=
+    lazymatch goal with
+    | [ |- forall trace, allows_behavior ?init ?step trace -> ?satisfies ]
+      => let H := fresh in
+         intros ? H; hnf_under_and_goal; revert H
+    end.
+  Ltac split_and_under_arrow :=
+    lazymatch goal with
+    | [ |- allows_behavior _ _ _ -> _ ]
+      => let H := fresh in
+         intro H; repeat apply conj; revert H
+    end.
+  Ltac handle_decidable_equality :=
+    lazymatch goal with
+    | [ |- forall v, v = ?k -> ?handler v = ?retv ]
+      => is_evar handler;
+         let lem := constr:(@handle_decidable_equality _ k _) in
+         eapply (lem _ retv _)
+    | [ |- forall v, (if dec (@?p v = ?k) then ?retv else _) = @?q v -> @?p v = ?k -> @?q v = ?retv ]
+      => intro; edestruct dec; congruence
+    end.
+  Lemma strip_handle_decidable_equality {T} (val : T) {Hdec : forall v, Decidable (v = val)} {U} (retv : U) handler (P : U -> T -> Prop)
+    : (forall v : T, v <> val -> P (if dec (v = val) then retv else handler v) v)
+      <-> (forall v : T, v <> val -> P (handler v) v).
+  Proof.
+    split; intros H v Hval; specialize (H v Hval);
+      edestruct dec; try assumption; congruence.
+  Qed.
+  Ltac strip_handle_decidable_equality :=
+    lazymatch goal with
+    | [ |- forall ls : ?T, ls <> ?val -> _ ]
+      => let ls' := fresh ls in
+         let H := fresh in
+         intros ls' H;
+         lazymatch goal with
+         | [ |- context[if (@dec (ls' = val) ?Hdec) then ?t else ?f] ]
+           => pattern (if (@dec (ls' = val) Hdec) then t else f);
+              let P := lazymatch goal with |- ?P _ => P end in
+              let P := lazymatch (eval pattern ls' in P) with ?P _ => P end in
+              let f := lazymatch (eval pattern ls' in f) with ?f _ => f end in
+              revert ls' H;
+              apply (proj2 (@strip_handle_decidable_equality _ val _ _ t f (fun a b => P b a)))
+         end
+    end.
   Goal { state : Type
      & { init : state -> Prop
      & { step : _
        | forall trace,
-           @allows_behavior state (list nat) nat init step trace
-           -> @trace_satisfies_negotiation_spec trace } } }.
+           @allows_behavior state (list nat) (option nat) init step trace
+           -> @trace_satisfies_negotiation_spec trace
+              /\ @trace_satisfies_negotiation_spec_error trace} } }.
   Proof.
-    Ltac start :=
-      repeat match goal with
-             | [ |- sigT _ ] => eexists
-             | [ |- sig _ ] => eexists
-             end.
-    Ltac start_unfold :=
-      lazymatch goal with
-      | [ |- forall trace, allows_behavior ?init ?step trace -> ?satisfies ]
-        => let H := fresh in
-           intros ? H; hnf; revert H
-      end.
     start.
     start_unfold.
-    { eapply handle_stateless.
-      Lemma handle_membership_with_first {T} (default : T)
-        : forall i : list T, i <> nil -> In (hd default i) i.
-      Proof. intros [|? ?] ?; simpl; auto; congruence. Qed.
-      apply (handle_membership_with_first 0).
-      intros ?? [ls ?] ?; simpl in *; subst; apply handle_membership_with_first. }
+    split_and_under_arrow;
+      (eapply handle_stateless; [ | intros ?? ]);
+      [ > repeat first [ handle_decidable_equality
+                       | progress cbv beta
+                       | strip_handle_decidable_equality ].. ];
+      [ > repeat first [ handle_decidable_equality
+                       | progress cbv beta
+                       | strip_handle_decidable_equality ].. ].
+    { eapply handle_membership_with_first_alt; reflexivity. }
+    { cbv beta.
+      intros [? ?]; intros; edestruct dec; try congruence; simpl in *; subst.
+      eexists; intro H; inversion H; subst.
+      destruct_one_head list; auto; congruence. }
     Grab Existential Variables.
+    exact 0.
+    exact 0.
     exact (fun _ => True).
     exact unit.
   Defined.
