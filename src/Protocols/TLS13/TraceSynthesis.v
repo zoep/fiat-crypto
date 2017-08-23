@@ -242,6 +242,10 @@ Section Example_2_ServerNegotiateDH.
            <-> exists extension,
             List.In extension (ServerHello.extensions hello)
             /\ Extension.extension_type _ extension = supported_groups.
+
+  (** Sending server hello spec: if you recieve a client hello and you
+  send a message after it, then the message immediately following the
+  client hello must be either a RetryHelloRequest or a ServerHello. *)
 End Example_2_ServerNegotiateDH.
 
 (** Standing questions:
