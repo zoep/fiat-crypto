@@ -243,3 +243,11 @@ Section Example_2_ServerNegotiateDH.
             List.In extension (ServerHello.extensions hello)
             /\ Extension.extension_type _ extension = supported_groups.
 End Example_2_ServerNegotiateDH.
+
+(** Standing questions:
+- Reuse synthesis for security verification + implementation, or separate them?
+- How to specify that arbitrary choices must not depend on secret data?
+- How do we recognize what data should be transient vs live in the state?
+- How big of chunks should we process data in? (in flights?)
+  A: Probably flights
+*)
