@@ -78,19 +78,61 @@ the traffic keys used to protect the rest of the handshake and the data.
 In TLS, the cryptographic negotiation proceeds by the client offering the
 following four sets of options in its ClientHello:
 
+ *)
+
+(* Constraint: Session starts with ClientHello *)
+
+(**
+
 - A list of cipher suites which indicates the AEAD algorithm/HKDF hash
   pairs which the client supports.
+
+ *)
+
+(* Client Constraint: Per-Connection decision of list of which suites are
+supported; list in ClientHello must be Leibniz equal to the list of
+supported suites. *)
+
+(**
 - A "supported_groups" ({{negotiated-groups}}) extension which indicates the (EC)DHE groups
   which the client supports and a "key_share" ({{key-share}}) extension which contains
   (EC)DHE shares for some or all of these groups.
+ *)
+(* Client Constraint: Per-Connection decision of list of which
+groups/key_share are supported; list in ClientHello must be Leibniz
+equal to the list of supported groups/key_share. *)
+(* Note: key_share is optional/situation-dependent *)
+(* TODO: report issue with wording here *)
+
+(**
 - A "signature_algorithms" ({{signature-algorithms}}) extension which indicates the signature
   algorithms which the client can accept.
+ *)
+
+(* Client Constraint: Per-Connection decision of list of which
+signature_algorithms are supported; list in ClientHello must be
+Leibniz equal to the list chosen. *)
+
+(**
 - A "pre_shared_key" ({{pre-shared-key-extension}}) extension which
   contains a list of symmetric key identities known to the client and a
   "psk_key_exchange_modes" ({{pre-shared-key-exchange-modes}})
   extension which indicates the key exchange modes that may be used
   with PSKs.
+ *)
 
+(* Client constraint: long-lived (across connections) global state of
+which key identities are known.  Note: optional *)
+(* How to implement: Global (cross-connection) list of "additions to
+pre_shared_key" up to this point (up to the current message); when
+filtering multi-connection traces for a particular connection, also
+filter the list of additions.  Pass in this list of additions, as well
+as the initial list (which may or may not be empty), at the
+ClientHello, if you send pre_shared_key, the set you send must be a
+subset (sublist up to permutation) of the initial list + the list of
+additions at the point of the client hello. *)
+
+(**
 If the server does not select a PSK, then the first three of these
 options are entirely orthogonal: the server independently selects a
 cipher suite, an (EC)DHE group and key share for key establishment,
@@ -99,6 +141,24 @@ the client. If there is no overlap between the received "supported_groups"
 and the groups supported by the server then the server MUST abort the
 handshake with a "handshake_failure" or an "insufficient_security" alert.
 
+ *)
+
+(* Note: these constraints don't mandate a ServerHello; they mandate
+that any ServerHello you do send agrees with these decisions. *)
+
+(* Server constraint: per-connection decision: pick option PSK; pick
+option (suite+group+key share+sig algorithm/cert pair) *)
+(* Server constraint: if you pick group / key_share, the group &
+key share MUST be in the lists given by the client. *)
+(* Server constraint: if you pick PSK, then it must be in the client's
+list *)
+(* Server constraint: if PSK is None and other stuff is None, then you
+MUST abort with handshake_failure or with insufficient_security. *)
+(* Note: The server is not actually required to make the choice
+independently, is it? *)
+
+(**
+
 If the server selects a PSK, then it MUST also select a key
 establishment mode from the set indicated by client's
 "psk_key_exchange_modes" extension (at present, PSK alone or with (EC)DHE). Note
@@ -106,22 +166,65 @@ that if the PSK can be used without (EC)DHE then non-overlap in the
 "supported_groups" parameters need not be fatal, as it is in the
 non-PSK case discussed in the previous paragraph.
 
+ *)
+
+(* Server constraint: per-connection choice of option PSK-mode; if PSK
+is not none and client presented a psk_key_exchange_modes list, then
+the server MUST send a PSK mode that's in the list *)
+
+(**
+
 If the server selects an (EC)DHE group and the client did not offer a
 compatible "key_share" extension in the initial ClientHello, the server MUST
 respond with a HelloRetryRequest ({{hello-retry-request}}) message.
+
+ *)
+
+(* Server constraint: per-connection choice of option group; if the
+group has no compatible key_share, next message must be
+HelloRetryRequest with the selected group *)
+
+(**
 
 If the server successfully selects parameters and does not require a
 HelloRetryRequest, it indicates the selected parameters in the ServerHello as
 follows:
 
+ *)
+
+(* TODO: Request clarification: can the server send a
+HelloRetryRequest with a group for which the client did, in fact,
+offer a compatible "key_share" extension?  Or is it required to send a
+ServerHello if it can, for the selected group? *)
+
+(**
+
 - If PSK is being used, then the server will send a
   "pre_shared_key" extension indicating the selected key.
+
+ *)
+
+(* Server constraint: ^ *)
+
+(**
 
 - If PSK is not being used, then (EC)DHE and certificate-based
   authentication are always used.
 
+ *)
+
+(* Server constraint: ^ *)
+
+(**
+
 - When (EC)DHE is in use, the server will also provide a
   "key_share" extension.
+
+ *)
+
+(* Server constraint: ^ *)
+
+(**
 
 - When authenticating via a certificate, the server will send
   the Certificate ({{certificate}}) and CertificateVerify
@@ -130,11 +233,27 @@ follows:
   is always used, but not both. Future documents may define how
   to use them together.
 
+ *)
+
+(* Server constraint: If PSK is None (c.f. bullet point 2), then, if
+server Finished appears in the transcript, Certificate and
+CertificateVerify must be sent by the server before that *)
+
+(**
+
 If the server is unable to negotiate a supported set of parameters
 (i.e., there is no overlap between the client and server parameters),
 it MUST abort the handshake with either
 a "handshake_failure" or "insufficient_security" fatal alert
 (see {{alert-protocol}}).
+
+ *)
+
+(* Server constraint: If you send anything other than ServerHello or
+HelloRetryRequest, then it must be an abort with handshake_failure or
+insufficient_security *)
+
+(**
 
 ###  Client Hello
 
@@ -144,29 +263,73 @@ ClientHello when the server has responded to its ClientHello with a
 HelloRetryRequest. In that case, the client MUST send the same
 ClientHello (without modification) except:
 
+ *)
+
+(* Duplicate Client Constraint: Session starts with ClientHello *)
+(* Client Constraint: If you get HelloRetryRequest, MUST respond with
+ClientHello if you respond at all *)
+
+(**
 - If a "key_share" extension was supplied in the HelloRetryRequest,
   replacing the list of shares with a list containing a single
   KeyShareEntry from the indicated group.
 
+ *)
+
+(* Client Constraint: ^ *)
+
+(**
 - Removing the "early_data" extension ({{early-data-indication}}) if one was
   present. Early data is not permitted after HelloRetryRequest.
 
+ *)
+
+(* Client Constraint: ^ *)
+
+(**
 - Including a "cookie" extension if one was provided in the
   HelloRetryRequest.
 
+ *)
+
+(* Client Constraint: ^ (Note: Required) *)
+
+(**
 - Updating the "pre_shared_key" extension if present by
   recomputing the "obfuscated_ticket_age" and binder values
   and (optionally) removing
   any PSKs which are incompatible with the server's indicated
   cipher suite.
+ *)
+
+(* Client Constraint: Computed pre_shared_key must be re-computed with
+new randomness and with the same inputs as before, modulo possibly
+removing incompatible keys. *)
+
+(**
 
 Because TLS 1.3 forbids renegotiation, if a server has negotiated TLS
 1.3 and receives a ClientHello at any other time, it MUST terminate
 the connection with an "unexpected_message" alert.
 
+ *)
+
+(* Server constraint: If there's a ClientHello after anything other
+than connection start or HelloRetryRequest, abort with
+unexpected_message.  Note that aborting (but not the alert?) is
+mandated by transcript hash. *)
+
+(**
+
 If a server established a TLS connection with a previous version of TLS
 and receives a TLS 1.3 ClientHello in a renegotiation, it MUST retain the
 previous protocol version. In particular, it MUST NOT negotiate TLS 1.3.
+
+ *)
+
+(* Note: We're not implementing any older protocols *)
+
+(**
 
 Structure of this message:
 
@@ -211,6 +374,12 @@ legacy_session_id
   length field) by clients that do not have a cached session ID
   set by a pre-TLS 1.3 server.
 
+ *)
+
+(* Note: We're not implementing any older protocols *)
+
+(**
+
 cipher_suites
 : This is a list of the symmetric cipher options supported by the
   client, specifically the record protection algorithm (including
@@ -221,6 +390,14 @@ cipher_suites
   usual. Values are defined in {{cipher-suites}}. If the client is
   attempting a PSK key establishment, it SHOULD advertise at least one
   cipher suite indicating a Hash associated with the PSK.
+
+ *)
+
+(* Note: Ignoring unrecognized cipher suites should get spec'd at the
+same location as, e.g., spec'ing that the server isn't allowed to
+decide to end connections early based on secret data *)
+
+(**
 
 legacy_compression_methods
 : Versions of TLS before 1.3 supported compression with the list of
@@ -236,6 +413,14 @@ legacy_compression_methods
   as having a legacy_version of 0x0303 and a supported_versions extension
   present with 0x0304 as the highest version indicated therein.
 
+ *)
+
+(* Server constraint: If we recieve ClientHello with anything other
+than single zero byte in legacy_compression_methods, we MUST abort
+with illegal_parameter. *)
+
+(**
+
 extensions
 : Clients request extended functionality from servers by sending
   data in the extensions field.  The actual "Extension" format is
@@ -243,6 +428,14 @@ extensions
   of certain extensions is mandatory, as functionality is moved into
   extensions to preserve ClientHello compatibility with previous versions of TLS.
   Servers MUST ignore unrecognized extensions.
+ *)
+
+(* Note: Ignoring unrecognized extensions should get spec'd at the
+same location as, e.g., spec'ing that the server isn't allowed to
+decide to end connections early based on secret data *)
+
+(**
+
 {:br }
 
 All versions of TLS allow an extensions field to optionally follow the
@@ -259,6 +452,13 @@ is used for compatibility with TLS before extensions were defined.
 TLS 1.3 servers will need to perform this check first and only
 attempt to negotiate TLS 1.3 if a "supported_version" extension
 is present.
+ *)
+
+(* Note: We should be able to encode missing list of extensions as nil
+(otherwise as [None : option list]); this happens when decoding
+records / wire data. *)
+
+(**
 If negotiating a version of TLS prior to 1.3, a server MUST check that
 the message either contains no data after legacy_compression_methods
 or that it contains a valid extensions block with no data following.
@@ -273,6 +473,11 @@ or HelloRetryRequest message. If early data
 is in use, the client may transmit early application data
 ({{zero-rtt-data}}) while waiting for the next handshake message.
 
+ *)
+
+(* TODO: Deal with early data *)
+
+(**
 ### Server Hello {#server-hello}
 
 The server will send this message in response to a ClientHello message
