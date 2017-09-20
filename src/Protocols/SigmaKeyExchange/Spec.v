@@ -1,4 +1,5 @@
 Require Import Crypto.Spec.Trace.
+Require Import Crypto.Protocols.SigmaKeyExchange.Combinators.
 (**
 // All single-letter symbols in this comment represent public DH keys.
 // Capital letters represent long-term and others are per-connection
@@ -76,81 +77,13 @@ Section spec.
       Context (init : state -> Prop)
               (step : state -> input -> output -> state -> Prop).
 
-      (* TODO: MOVE ME *)
-      Fixpoint holds_of_messages_around_nth_message_matching_aux
-               (n : nat)
-               {T}
-               (matcher : T -> Prop)
-               (property : list T -> T -> list T -> Prop)
-               (pre_trace : list T)
-               (trace : list T)
-        : Prop
-        := match trace with
-           | nil => True
-           | m :: ms
-             => (matcher m ->
-                 match n with
-                 | 0 => property pre_trace m ms
-                 | S n'
-                   => holds_of_messages_around_nth_message_matching_aux
-                        n'
-                        matcher
-                        property
-                        (pre_trace ++ m::nil)
-                        ms
-                 end)
-                /\ (~matcher m
-                    -> holds_of_messages_around_nth_message_matching_aux
-                         n
-                         matcher property (pre_trace ++ (m::nil)) ms)
-           end%list.
-      Fixpoint holds_of_messages_around_nth_message_matching
-               (n : nat)
-               {T}
-               (matcher : T -> Prop)
-               (property : list T -> T -> list T -> Prop)
-               (trace : list T)
-        : Prop
-        := holds_of_messages_around_nth_message_matching_aux
-             n matcher property nil trace.
-      Definition holds_of_messages_before_nth_message_matching
-                 (n : nat)
-                 {T}
-                 (matcher : T -> Prop)
-                 (property : list T -> T -> Prop)
-                 (trace : list T)
-        : Prop
-        := holds_of_messages_around_nth_message_matching
-             n matcher (fun before m after => property before m) trace.
-      Definition holds_of_nth_message_matching
-                 (n : nat)
-                 {T}
-                 (matcher : T -> Prop)
-                 (property : T -> Prop)
-                 (trace : list T)
-        : Prop
-        := holds_of_messages_around_nth_message_matching
-             n matcher (fun _ m _=> property m) trace.
-      Definition holds_of_messages_after_nth_message_matching
-                 (n : nat)
-                 {T}
-                 (matcher : T -> Prop)
-                 (property : T -> list T -> Prop)
-                 (trace : list T)
-        : Prop
-        := holds_of_messages_around_nth_message_matching
-             n matcher (fun before m after => property m after) trace.
-
       (* Constraint: we don't send anything after CloseConnection *)
       Definition close_connection_closed
                  (trace : list (input * output)) : Prop
-        := holds_of_messages_after_nth_message_matching
+        := holds_of_all_messages_strictly_after_nth_message_matching
              0
-             (fun '(m_in, m_out) => m_out = Some CloseConnection)
-             (fun _ after
-              => List.Forall
-                   (fun '(m_in, m_out) => m_out = None)
-                   after)
+             (on_output (fun m_out => m_out = Some CloseConnection))
+             (fun _ => on_output (fun m_out => m_out = None))
              trace.
 
       (* Constraint: if there's a first message on the wire from our
@@ -158,13 +91,10 @@ Section spec.
           which gives x *)
       Definition get_randomness_spec
                  (trace : list (input * output)) : Prop
-        := holds_of_messages_before_nth_message_matching
+        := holds_of_some_message_before_nth_message_matching
              0
-             (fun '(m_in, m_out) => exists v, m_out = Some (SendNetwork v))
-             (fun pre_trace m
-              => List.Exists (fun '(m_in, m_out)
-                              => m_in = Random our_ephemeral_secret)
-                             (pre_trace ++ (m::nil)))
+             (on_output (fun m_out => exists v, m_out = Some (SendNetwork v)))
+             (fun _ => on_input (fun m_in => m_in = Random our_ephemeral_secret))
              trace.
 
       Let Send_a := Some (SendNetwork (text_of_public our_ephemeral_public)).
@@ -175,10 +105,8 @@ Section spec.
                  (trace : list (input * output)) : Prop
         := holds_of_nth_message_matching
              0
-             (fun '(m_in, m_out)
-              => exists v, m_out = Some (SendNetwork v))
-             (fun '(m_in, m_out)
-              => m_out = Send_a)
+             (on_output (fun m_out => exists v, m_out = Some (SendNetwork v)))
+             (on_output (fun m_out => m_out = Send_a))
              trace.
 
       (* Constraint: if you recieve more than just [b] before you send
@@ -192,18 +120,15 @@ Section spec.
                  (trace : list (input * output)) : Prop
         := holds_of_nth_message_matching
              0
-             (fun '(m_in, m_out) => exists v, m_in = RecieveNetwork v)
-             (fun '(m_in, m_out) => m_in = RecieveNetwork (text_of_public their_ephemeral_public))
+             (on_input (fun m_in => exists v, m_in = RecieveNetwork v))
+             (on_input (fun m_in => m_in = RecieveNetwork (text_of_public their_ephemeral_public)))
              trace.
       Definition must_recieve_b
                  (trace : list (input * output)) : Prop
-        := holds_of_messages_around_nth_message_matching
+        := holds_of_some_message_strictly_before_nth_message_matching
              1
-             (fun '(m_in, m_out) => exists v, m_out = Some (SendNetwork v))
-             (fun before m after
-              => List.Exists
-                   (fun '(m_in, m_out) => m_in = RecieveNetwork (text_of_public their_ephemeral_public))
-                   before)
+             (on_output (fun m_out => exists v, m_out = Some (SendNetwork v)))
+             (fun _ => on_input (fun m_in => m_in = RecieveNetwork (text_of_public their_ephemeral_public)))
              trace.
 
       (* Constraint: the form of our second message must be correct *)
@@ -212,24 +137,25 @@ Section spec.
                  (trace : list (input * output)) : Prop
         := holds_of_nth_message_matching
              1
-             (fun '(m_in, m_out) => exists v, m_out = Some (SendNetwork v))
-             (fun '(m_in, m_out)
-              => m_out
-                 = Some
-                     (SendNetwork
-                        (text_of_cipher
-                           (box_seal
-                              our_ephemeral_secret
-                              their_ephemeral_public
-                              (text_of_pair
-                                 (text_of_public our_longterm_public,
-                                  text_of_cipher
-                                    (box_seal
-                                       our_longterm_secret
-                                       their_ephemeral_public
-                                       (text_of_pair
-                                          (text_of_public our_ephemeral_public,
-                                           text_of_public their_ephemeral_public)))))))))
+             (on_output (fun m_out => exists v, m_out = Some (SendNetwork v)))
+             (on_output
+                (fun m_out
+                 => m_out
+                    = Some
+                        (SendNetwork
+                           (text_of_cipher
+                              (box_seal
+                                 our_ephemeral_secret
+                                 their_ephemeral_public
+                                 (text_of_pair
+                                    (text_of_public our_longterm_public,
+                                     text_of_cipher
+                                       (box_seal
+                                          our_longterm_secret
+                                          their_ephemeral_public
+                                          (text_of_pair
+                                             (text_of_public our_ephemeral_public,
+                                              text_of_public their_ephemeral_public))))))))))
              trace.
 
       (* Constraint: if you send a non-abort message after sending [a]
@@ -242,34 +168,35 @@ Section spec.
                  (trace : list (input * output)) : Prop
         := holds_of_nth_message_matching
              1
-             (fun '(m_in, m_out) => exists v, m_in = RecieveNetwork v)
-             (fun '(m_in, m_out)
-              => forall v boxed_b_a,
-                  m_in = RecieveNetwork v
-                  -> box_open
-                       our_ephemeral_secret
-                       their_ephemeral_public
-                       (cipher_of_text v)
-                     = Some (text_of_pair
-                               (text_of_public their_longterm_public,
-                                text_of_cipher boxed_b_a))
-                     /\ box_open
+             (on_input (fun m_in => exists v, m_in = RecieveNetwork v))
+             (on_input
+                (fun m_in
+                 => forall v boxed_b_a,
+                     m_in = RecieveNetwork v
+                     -> box_open
                           our_ephemeral_secret
-                          their_longterm_public
-                          boxed_b_a
+                          their_ephemeral_public
+                          (cipher_of_text v)
                         = Some (text_of_pair
-                                  (text_of_public their_ephemeral_public,
-                                   text_of_public our_ephemeral_public)))
+                                  (text_of_public their_longterm_public,
+                                   text_of_cipher boxed_b_a))
+                        /\ box_open
+                             our_ephemeral_secret
+                             their_longterm_public
+                             boxed_b_a
+                           = Some (text_of_pair
+                                     (text_of_public their_ephemeral_public,
+                                      text_of_public our_ephemeral_public))))
              trace.
       (* Also spec output here *)
       Definition second_message_recieved
                  (trace : list (input * output)) : Prop
-        := holds_of_messages_before_nth_message_matching
+        := holds_of_some_message_strictly_before_nth_message_matching
              0
-             (fun '(m_in, m_out) => exists v, m_out = Some (UserOutput v))
-             (fun before _
-              => List.Exists
-                   (fun '(m_in, m_out)
+             (on_output (fun m_out => exists v, m_out = Some (UserOutput v)))
+             (fun _
+              => on_input
+                   (fun m_in
                     => forall v boxed_b_a,
                         m_in = RecieveNetwork v
                         -> box_open
@@ -285,31 +212,28 @@ Section spec.
                                 boxed_b_a
                               = Some (text_of_pair
                                         (text_of_public their_ephemeral_public,
-                                         text_of_public our_ephemeral_public)))
-                   before)
+                                         text_of_public our_ephemeral_public))))
              trace.
       Definition output_correct_form
                  (trace : list (input * output)) : Prop
         := holds_of_nth_message_matching
              0
-             (fun '(m_in, m_out) => exists v, m_out = Some (UserOutput v))
-             (fun '(m_in, m_out)
-              => m_out
-                 = Some
-                     (UserOutput
-                        (our_ephemeral_secret,
-                         their_ephemeral_public,
-                         their_longterm_public)))
+             (on_output (fun m_out => exists v, m_out = Some (UserOutput v)))
+             (on_output
+                (fun m_out
+                 => m_out
+                    = Some
+                        (UserOutput
+                           (our_ephemeral_secret,
+                            their_ephemeral_public,
+                            their_longterm_public))))
              trace.
       Definition nothing_after_user_output
                  (trace : list (input * output)) : Prop
-        := holds_of_messages_after_nth_message_matching
+        := holds_of_all_messages_strictly_after_nth_message_matching
              0
-             (fun '(m_in, m_out) => exists v, m_out = Some (UserOutput v))
-             (fun _ after
-              => List.Forall
-                   (fun '(m_in, m_out) => m_out = None)
-                   after)
+             (on_output (fun m_out => exists v, m_out = Some (UserOutput v)))
+             (fun _ => on_output (fun m_out => m_out = None))
              trace.
 
       Section stateful.
