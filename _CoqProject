@@ -216,6 +216,7 @@ src/Primitives/EdDSARepChange.v
 src/Primitives/MxDHRepChange.v
 src/Protocols/SigmaKeyExchange/Combinators.v
 src/Protocols/SigmaKeyExchange/Spec.v
+src/Protocols/SigmaKeyExchange/SpecWithAPI.v
 src/Protocols/SigmaKeyExchange/SpecWithSanitization.v
 src/Protocols/TLS13/Spec.v
 src/Protocols/TLS13/Structures.v

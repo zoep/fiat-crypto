@@ -114,11 +114,15 @@ Section spec.
           choice of [b]) *)
       Definition must_set_b
                  (trace : list (input * output)) : Prop
-        := holds_of_nth_message_matching
-             0
-             (on_input (fun m_in => exists v, m_in = RecieveNetwork v))
-             (on_input (fun m_in => m_in = RecieveNetwork (text_of_public their_ephemeral_public)))
-             trace.
+        := nth_message_matching_exists
+             1
+             (on_output (fun m_out => exists v, m_out = Some (SendNetwork v)))
+             trace
+           -> holds_of_nth_message_matching
+                0
+                (on_input (fun m_in => exists v, m_in = RecieveNetwork v))
+                (on_input (fun m_in => m_in = RecieveNetwork (text_of_public their_ephemeral_public)))
+                trace.
       Definition must_recieve_b
                  (trace : list (input * output)) : Prop
         := holds_of_some_message_strictly_before_nth_message_matching
@@ -162,28 +166,32 @@ Section spec.
       (* //<-- [B,[b,a](B<>a)](a<>b) *)
       Definition second_message_recieved_correct_form
                  (trace : list (input * output)) : Prop
-        := holds_of_nth_message_matching
-             1
-             (on_input (fun m_in => exists v, m_in = RecieveNetwork v))
-             (on_input
-                (fun m_in
-                 => forall v boxed_b_a,
-                     m_in = RecieveNetwork v
-                     -> box_open
-                          our_ephemeral_secret
-                          their_ephemeral_public
-                          (cipher_of_text v)
-                        = Some (text_of_pair
-                                  (text_of_public their_longterm_public,
-                                   text_of_cipher boxed_b_a))
-                        /\ box_open
+        := nth_message_matching_exists
+             2
+             (on_output (fun m_out => exists v, m_out = Some (SendNetwork v)))
+             trace
+           -> holds_of_nth_message_matching
+                1
+                (on_input (fun m_in => exists v, m_in = RecieveNetwork v))
+                (on_input
+                   (fun m_in
+                    => forall v boxed_b_a,
+                        m_in = RecieveNetwork v
+                        -> box_open
                              our_ephemeral_secret
-                             their_longterm_public
-                             boxed_b_a
+                             their_ephemeral_public
+                             (cipher_of_text v)
                            = Some (text_of_pair
-                                     (text_of_public their_ephemeral_public,
-                                      text_of_public our_ephemeral_public))))
-             trace.
+                                     (text_of_public their_longterm_public,
+                                      text_of_cipher boxed_b_a))
+                           /\ box_open
+                                our_ephemeral_secret
+                                their_longterm_public
+                                boxed_b_a
+                              = Some (text_of_pair
+                                        (text_of_public their_ephemeral_public,
+                                         text_of_public our_ephemeral_public))))
+                trace.
       (* Also spec output here *)
       Definition second_message_recieved
                  (trace : list (input * output)) : Prop
