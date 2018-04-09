@@ -7099,6 +7099,8 @@ Module PrintingNotations.
     := (r[0 ~> 18446744073709551615]) : zrange_scope.
   Notation "'uint32'"
     := (r[0 ~> 4294967295]) : zrange_scope.
+  Notation "'uint16'"
+    := (r[0 ~> 65535]) : zrange_scope.
   Notation "'bool'"
     := (r[0 ~> 1]%zrange) : zrange_scope.
   Notation "ls [[ n ]]"
@@ -7743,6 +7745,168 @@ fun var : type -> Type =>
 *)
 End X25519_32.
 *)
+
+Module MulAccumulate.
+  Section mac.
+    Context (n nout : nat) (Hnout : nout <> 0%nat) (Hn_nz : n <> 0%nat).
+    Context (log2base : Z) (log2base_pos : 0 < log2base) (n_le_log2base : Z.of_nat n <= log2base).
+    Let dw : nat -> Z := weight (log2base / Z.of_nat n) 1.
+    Let sw : nat -> Z := weight log2base 1.
+
+    Local Lemma base_bounds : 0 < 1 <= log2base. Proof. auto with zarith. Qed.
+    Local Lemma dbase_bounds : 0 < 1 <= log2base / Z.of_nat n. Proof. auto with zarith. Qed.
+    Let dwprops : @weight_properties dw := wprops (log2base / Z.of_nat n) 1 dbase_bounds.
+    Let swprops : @weight_properties sw := wprops log2base 1 base_bounds.
+
+    Definition mul_accumulate a b c : list Z :=
+      let a_a := BaseConversion.to_associational sw dw 1 n [a] in
+      let b_a := BaseConversion.to_associational sw dw 1 n [b] in
+      let c_a := BaseConversion.to_associational sw dw 1 n [c] in
+      let ab_a := Associational.mul a_a b_a in
+      let abc_a := ab_a ++ c_a in
+      BaseConversion.from_associational sw dw (BaseConversion.aligned_carries n nout) nout abc_a.
+
+    Lemma eval_mul_accumulate a b c :
+      0 <= a * b + c < sw nout ->
+      Positional.eval sw nout (mul_accumulate a b c) = a * b + c.
+    Proof.
+      intros. cbv [mul_accumulate].
+      rewrite BaseConversion.eval_from_associational; auto; autorewrite with push_eval.
+      { rewrite !BaseConversion.eval_to_associational by auto.
+        cbn. rewrite weight_0 by auto. ring. }
+      { rewrite !BaseConversion.eval_to_associational by auto.
+        cbn. rewrite weight_0 by auto. ring_simplify_subterms. assumption. }
+    Qed.
+
+    Derive mac
+           SuchThat (forall (abc : Z * Z * Z)
+                            (a := fst (fst abc))
+                            (b := snd (fst abc))
+                            (c := snd abc),
+                        0 <= a * b + c < sw nout ->
+                        (Positional.eval sw nout (mac abc)) = a * b + c)
+           As eval_mac.
+    Proof.
+      intros.
+      rewrite <-eval_mul_accumulate by omega.
+      eapply f_equal.
+      subst a b c mac. reflexivity.
+    Qed.
+  End mac.
+  
+  Derive mac_gen
+         SuchThat (forall (n nout : nat)
+                          (half_base : Z)
+                          (abc : Z * Z * Z),
+                      Interp (t:=type.reify_type_of mac)
+                             mac_gen n nout half_base abc
+                      = mac n nout half_base abc)
+         As mac_gen_correct.
+  Proof. Time cache_reify (). exact admit. (* correctness of initial parts of the pipeline *) Time Qed.
+  Module Export ReifyHints.
+    Global Hint Extern 1 (_ = mac _ _ _ _) => simple apply mac_gen_correct : reify_gen_cache.
+  End ReifyHints.
+
+  Section rmac.
+    Context (log2base : Z)
+            (machine_wordsize : Z).
+
+    Let bound := Some (r[0 ~> (2^machine_wordsize - 1)%Z]%zrange).
+
+    Definition relax_zrange_of_machine_wordsize
+      := relax_zrange_gen [1; machine_wordsize / 2; machine_wordsize]%Z.
+    Local Arguments relax_zrange_of_machine_wordsize / .
+
+    Let relax_zrange := relax_zrange_of_machine_wordsize.
+
+    Definition check_args {T} (res : Pipeline.ErrorT T)
+      : Pipeline.ErrorT T
+      := res.
+
+    Notation BoundsPipeline_correct in_bounds out_bounds op
+      := (fun rv (rop : Expr (type.reify_type_of op)) Hrop
+          => @Pipeline.BoundsPipeline_correct_trans
+               false (* subst01 *)
+               relax_zrange
+               (relax_zrange_gen_good _)
+               _
+               rop
+               in_bounds
+               out_bounds
+               op
+               Hrop rv)
+           (only parsing).
+
+    Definition rmac_correct
+      := BoundsPipeline_correct
+           (bound, bound, bound)
+           (Some [bound; bound])
+           (mac 2 2 log2base).
+
+    Notation type_of_strip_3arrow := ((fun (d : Prop) (_ : forall A B C, d) => d) _).
+    Definition rmac_correctT rv : Prop
+      := type_of_strip_3arrow (@rmac_correct rv).
+  End rmac.
+End MulAccumulate.
+
+Ltac solve_rmac := solve_rop MulAccumulate.rmac_correct.
+Ltac solve_rmac_nocache := solve_rop_nocache MulAccumulate.rmac_correct.
+
+Module Mac32.
+  Definition base := 32.
+  Definition machine_wordsize := 32.
+
+  Derive mac32
+         SuchThat (MulAccumulate.rmac_correctT base machine_wordsize mac32)
+         As mac32_correct.
+  Proof. Time solve_rmac_nocache machine_wordsize. Qed.
+
+  Import PrintingNotations.
+  Open Scope expr_scope.
+  Set Printing Width 100000.
+  Local Notation "x '.lo16'" := ((uint16)(x) & 65535) (at level 50, format "x .lo16") : expr_scope.
+  Local Notation "x '.hi16'"  := (Z.cast uint16 @@ (Z.shiftr 16 @@ x))
+                                   (at level 50, format "x .hi16") : expr_scope.
+  Notation "x +₃₂ y"
+    := (ident.Z.cast2 (uint32, bool)%core @@ (Z.add_get_carry_concrete 4294967296 @@ (x, y)))%expr (at level 50) : expr_scope.
+  Notation "x +c₃₂ y"
+    := (ident.Z.cast2 (uint32, bool)%core @@ (Z.add_with_get_carry_concrete 4294967296 @@ (_, x, y)))%expr (at level 50) : expr_scope.
+ 
+  Notation "v ₁ ₁" := (ident.Z.cast _ @@ (ident.fst @@ (@ident.fst (_ * _) _ @@ (Var v))))%expr (at level 10, format "v ₁ ₁") : expr_scope.
+  Notation "v ₁ ₂" := (ident.Z.cast _ @@ (ident.snd @@ (@ident.fst (_ * _) _ @@ (Var v))))%expr (at level 10, format "v ₁ ₂") : expr_scope.
+  Print mac32.
+  (* 
+mac32 = fun var : type -> Type => λ x : var (type.type_primitive type.Z * type.type_primitive type.Z * type.type_primitive type.Z)%ctype,
+        expr_let x0 := x₁₁.hi16 in
+        expr_let x1 := x₁₁.lo16 in
+        expr_let x2 := x₁₂.hi16 in
+        expr_let x3 := x₁₂.lo16 in
+        expr_let x4 := x₂.hi16 in
+        expr_let x5 := x₂.lo16 in
+        expr_let x6 := (bool)(x4 >> 16) in
+        expr_let x7 := x4.lo16 in
+        expr_let x8 := x0 *₃₂ x3 in
+        expr_let x9 := x8.hi16 in
+        expr_let x10 := x8.lo16 in
+        expr_let x11 := x1 *₃₂ x2 in
+        expr_let x12 := x11.hi16 in
+        expr_let x13 := x11.lo16 in
+        expr_let x14 := (uint32)(x13 << 16) in
+        expr_let x15 := x1 *₃₂ x3 in
+        expr_let x16 := x14 +₃₂ x15 in
+        expr_let x17 := x9 +c₃₂ x12 in
+        expr_let x18 := (uint32)(x10 << 16) in
+        expr_let x19 := x18 +₃₂ x16₁ in
+        expr_let x20 := x0 *₃₂ x2 in
+        expr_let x21 := x20 +c₃₂ x17₁ in
+        expr_let x22 := x5 +₃₂ x19₁ in
+        expr_let x23 := x6 +c₃₂ x21₁ in
+        expr_let x24 := (uint32)(x7 << 16) in
+        expr_let x25 := x24 +₃₂ x22₁ in
+        x25₁ :: x23₁ :: []
+     : Expr (type.uncurry (type.type_primitive type.Z * type.type_primitive type.Z * type.type_primitive type.Z -> type.list (type.type_primitive type.Z)))
+*)
+End Mac32.
 
 Require Import Crypto.Arithmetic.MontgomeryReduction.Definition.
 Require Import Crypto.Arithmetic.MontgomeryReduction.Proofs.
