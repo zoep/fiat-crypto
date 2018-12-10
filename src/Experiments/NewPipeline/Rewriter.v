@@ -2020,6 +2020,28 @@ Module Compilers.
                   (#pattern.ident.Z_add_get_carry @ #?ℤ @ ?? @ ??)
                   (fun s x y => #(ident.fancy_add (Z.log2 s) 0) @ (x, y)  when  s =? 2^Z.log2 s)
 (*
+(Z.add_with_get_carry_concrete 2^256) @@ (0, ?x, ?y << 128) --> (add 128) @@ (x, y)
+(Z.add_with_get_carry_concrete 2^256) @@ (0, ?x << 128, ?y) --> (add 128) @@ (y, x)
+(Z.add_with_get_carry_concrete 2^256) @@ (0, ?x, ?y >> 128) --> (add (- 128)) @@ (x, y)
+(Z.add_with_get_carry_concrete 2^256) @@ (0, ?x >> 128, ?y) --> (add (- 128)) @@ (y, x)
+(Z.add_with_get_carry_concrete 2^256) @@ (0, ?x, ?y)        --> (add 0) @@ (y, x)
+*)
+              ; make_rewriteo
+                  (#pattern.ident.Z_add_with_get_carry @ #?ℤ @ #?ℤ @ ?? @ (#pattern.ident.Z_shiftl @ (#pattern.ident.Z_land @ ?? @ #?ℤ) @ #?ℤ))
+                  (fun s c x y mask offset => #(ident.fancy_add (Z.log2 s) offset) @ (x, y)  when  (s =? 2^Z.log2 s) && (mask =? Z.ones (Z.log2 s - offset)) && (c =? 0))
+              ; make_rewriteo
+                  (#pattern.ident.Z_add_with_get_carry @ #?ℤ @ #?ℤ @ (#pattern.ident.Z_shiftl @ (#pattern.ident.Z_land @ ?? @ #?ℤ) @ #?ℤ) @ ??)
+                  (fun s c y mask offset x => #(ident.fancy_add (Z.log2 s) offset) @ (x, y)  when  (s =? 2^Z.log2 s) && (mask =? Z.ones (Z.log2 s - offset)) && (c =? 0))
+              ; make_rewriteo
+                  (#pattern.ident.Z_add_with_get_carry @ #?ℤ @ #?ℤ @ ?? @ (#pattern.ident.Z_shiftr @ ?? @ #?ℤ))
+                  (fun s c x y offset => #(ident.fancy_add (Z.log2 s) (-offset)) @ (x, y)  when  (s =? 2^Z.log2 s) && (c =? 0))
+              ; make_rewriteo
+                  (#pattern.ident.Z_add_with_get_carry @ #?ℤ @ #?ℤ @ (#pattern.ident.Z_shiftr @ ?? @ #?ℤ) @ ??)
+                  (fun s c y offset x => #(ident.fancy_add (Z.log2 s) (-offset)) @ (x, y)  when  (s =? 2^Z.log2 s) && (c =? 0))
+              ; make_rewriteo
+                  (#pattern.ident.Z_add_with_get_carry @ #?ℤ @ #?ℤ @ ?? @ ??)
+                  (fun s c x y => #(ident.fancy_add (Z.log2 s) 0) @ (x, y)  when  (s =? 2^Z.log2 s) && (c =? 0))
+(*
 (Z.add_with_get_carry_concrete 2^256) @@ (?c, ?x, ?y << 128) --> (addc 128) @@ (c, x, y)
 (Z.add_with_get_carry_concrete 2^256) @@ (?c, ?x << 128, ?y) --> (addc 128) @@ (c, y, x)
 (Z.add_with_get_carry_concrete 2^256) @@ (?c, ?x, ?y >> 128) --> (addc (- 128)) @@ (c, x, y)
