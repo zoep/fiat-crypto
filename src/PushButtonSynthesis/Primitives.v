@@ -27,6 +27,7 @@ Require Import Crypto.Arithmetic.Primitives.
 Require Import Crypto.Arithmetic.WordByWordMontgomery.
 Require Import Crypto.Arithmetic.UniformWeight.
 Require Import Crypto.BoundsPipeline.
+Require Import PrintingCommon.
 Require Import Crypto.COperationSpecifications.
 Require Import Crypto.PushButtonSynthesis.ReificationCache.
 Import ListNotations.
@@ -138,8 +139,8 @@ Local Notation out_bounds_of_pipeline result
   := ((fun a b c d e arg_bounds out_bounds result' (H : @Pipeline.BoundsPipeline a b c d e arg_bounds out_bounds = result') => out_bounds) _ _ _ _ _ _ _ result eq_refl)
        (only parsing).
 
-Notation FromPipelineToString prefix name result
-  := (Pipeline.FromPipelineToString prefix name result).
+Notation FromPipelineToString backend prefix name result :=
+  (Pipeline.FromPipelineToString backend prefix name result).
 
 Ltac prove_correctness' should_not_clear use_curve_good :=
   let Hres := match goal with H : _ = Success _ |- _ => H end in
@@ -643,142 +644,146 @@ Section __.
           correctness)
          (only parsing, at level 10, summary at next level, correctness at next level).
 
-  Definition selectznz
-    := Pipeline.BoundsPipeline
-         false (* subst01 *)
-         None (* fancy *)
-         possible_values_with_bytes
-         reified_selectznz_gen
-         (Some r[0~>1], (saturated_bounds, (saturated_bounds, tt)))%zrange
-         saturated_bounds.
+  Section KnownFunctions.
 
-  Definition sselectznz (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix "selectznz" selectznz
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " is a multi-limb conditional select."]%string)
-             (selectznz_correct dummy_weight n saturated_bounds_list)).
+    Context (backend : PrettyPrint.Backend).
 
-  Definition mulx (s : Z)
-    := Pipeline.BoundsPipeline
-         false (* subst01 *)
-         None (* fancy *)
-         possible_values_with_bytes
-         (reified_mulx_gen
-            @ GallinaReify.Reify s)
-         (Some r[0~>2^s-1], (Some r[0~>2^s-1], tt))%zrange
-         (Some r[0~>2^s-1], Some r[0~>2^s-1])%zrange.
+    Definition selectznz
+      := Pipeline.BoundsPipeline
+           false (* subst01 *)
+           None (* fancy *)
+           possible_values_with_bytes
+           reified_selectznz_gen
+           (Some r[0~>1], (saturated_bounds, (saturated_bounds, tt)))%zrange
+           saturated_bounds.
 
-  Definition smulx (prefix : string) (s : Z)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix ("mulx_u" ++ decimal_string_of_Z s) (mulx s)
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " is a multiplication, returning the full double-width result."]%string)
+    Definition sselectznz (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix "selectznz" selectznz
+            (docstring_with_summary_from_lemma!
+              (fun fname : string => ["The function " ++ fname ++ " is a multi-limb conditional select."]%string)
+              (selectznz_correct dummy_weight n saturated_bounds_list)).
+
+    Definition mulx (s : Z)
+      := Pipeline.BoundsPipeline
+           false (* subst01 *)
+           None (* fancy *)
+           possible_values_with_bytes
+           (reified_mulx_gen
+              @ GallinaReify.Reify s)
+           (Some r[0~>2^s-1], (Some r[0~>2^s-1], tt))%zrange
+           (Some r[0~>2^s-1], Some r[0~>2^s-1])%zrange.
+
+    Definition smulx (prefix : string) (s : Z)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix ("mulx_u" ++ decimal_string_of_Z s) (mulx s)
+            (docstring_with_summary_from_lemma!
+              (fun fname : string => ["The function " ++ fname ++ " is a multiplication, returning the full double-width result."]%string)
              (mulx_correct s)).
 
-  Definition addcarryx (s : Z)
-    := Pipeline.BoundsPipeline
-         false (* subst01 *)
-         None (* fancy *)
-         possible_values_with_bytes
-         (reified_addcarryx_gen
-            @ GallinaReify.Reify s)
-         (Some r[0~>1], (Some r[0~>2^s-1], (Some r[0~>2^s-1], tt)))%zrange
-         (Some r[0~>2^s-1], Some r[0~>1])%zrange.
+    Definition addcarryx (s : Z)
+      := Pipeline.BoundsPipeline
+           false (* subst01 *)
+           None (* fancy *)
+           possible_values_with_bytes
+           (reified_addcarryx_gen
+              @ GallinaReify.Reify s)
+           (Some r[0~>1], (Some r[0~>2^s-1], (Some r[0~>2^s-1], tt)))%zrange
+           (Some r[0~>2^s-1], Some r[0~>1])%zrange.
 
+    Definition saddcarryx (prefix : string) (s : Z)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix ("addcarryx_u" ++ decimal_string_of_Z s) (addcarryx s)
+            (docstring_with_summary_from_lemma!
+              (fun fname : string => ["The function " ++ fname ++ " is an addition with carry."]%string)
+              (addcarryx_correct s)).
 
-  Definition saddcarryx (prefix : string) (s : Z)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix ("addcarryx_u" ++ decimal_string_of_Z s) (addcarryx s)
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " is an addition with carry."]%string)
-             (addcarryx_correct s)).
+    Definition subborrowx (s : Z)
+      := Pipeline.BoundsPipeline
+           false (* subst01 *)
+           None (* fancy *)
+           possible_values_with_bytes
+           (reified_subborrowx_gen
+              @ GallinaReify.Reify s)
+           (Some r[0~>1], (Some r[0~>2^s-1], (Some r[0~>2^s-1], tt)))%zrange
+           (Some r[0~>2^s-1], Some r[0~>1])%zrange.
 
-  Definition subborrowx (s : Z)
-    := Pipeline.BoundsPipeline
-         false (* subst01 *)
-         None (* fancy *)
-         possible_values_with_bytes
-         (reified_subborrowx_gen
-            @ GallinaReify.Reify s)
-         (Some r[0~>1], (Some r[0~>2^s-1], (Some r[0~>2^s-1], tt)))%zrange
-         (Some r[0~>2^s-1], Some r[0~>1])%zrange.
+    Definition ssubborrowx (prefix : string) (s : Z)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix ("subborrowx_u" ++ decimal_string_of_Z s) (subborrowx s)
+            (docstring_with_summary_from_lemma!
+               (fun fname : string => ["The function " ++ fname ++ " is a subtraction with borrow."]%string)
+               (subborrowx_correct s)).
 
-  Definition ssubborrowx (prefix : string) (s : Z)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix ("subborrowx_u" ++ decimal_string_of_Z s) (subborrowx s)
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " is a subtraction with borrow."]%string)
-             (subborrowx_correct s)).
+    Definition cmovznz (s : Z)
+      := Pipeline.BoundsPipeline
+           false (* subst01 *)
+           None (* fancy *)
+           possible_values_with_bytes
+           (reified_cmovznz_gen
+              @ GallinaReify.Reify s)
+           (Some r[0~>1], (Some r[0~>2^s-1], (Some r[0~>2^s-1], tt)))%zrange
+           (Some r[0~>2^s-1])%zrange.
 
+    Definition scmovznz (prefix : string) (s : Z)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix ("cmovznz_u" ++ decimal_string_of_Z s) (cmovznz s)
+            (docstring_with_summary_from_lemma!
+              (fun fname : string => ["The function " ++ fname ++ " is a single-word conditional move."]%string)
+              (cmovznz_correct s)).
 
-  Definition cmovznz (s : Z)
-    := Pipeline.BoundsPipeline
-         false (* subst01 *)
-         None (* fancy *)
-         possible_values_with_bytes
-         (reified_cmovznz_gen
-            @ GallinaReify.Reify s)
-         (Some r[0~>1], (Some r[0~>2^s-1], (Some r[0~>2^s-1], tt)))%zrange
-         (Some r[0~>2^s-1])%zrange.
+    Local Ltac solve_extra_bounds_side_conditions :=
+      cbn [lower upper fst snd] in *; Bool.split_andb; Z.ltb_to_lt; lia.
 
-  Definition scmovznz (prefix : string) (s : Z)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix ("cmovznz_u" ++ decimal_string_of_Z s) (cmovznz s)
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " is a single-word conditional move."]%string)
-             (cmovznz_correct s)).
+    Hint Rewrite
+         eval_select
+         Arithmetic.Primitives.mulx_correct
+         Arithmetic.Primitives.addcarryx_correct
+         Arithmetic.Primitives.subborrowx_correct
+         Arithmetic.Primitives.cmovznz_correct
+         Z.zselect_correct
+         using solve [ auto | congruence | solve_extra_bounds_side_conditions ] : push_eval.
 
-  Local Ltac solve_extra_bounds_side_conditions :=
-    cbn [lower upper fst snd] in *; Bool.split_andb; Z.ltb_to_lt; lia.
+    Strategy -1000 [mulx]. (* if we don't tell the kernel to unfold this early, then [Qed] seems to run off into the weeds *)
+    Lemma mulx_correct s' res
+          (Hres : mulx s' = Success res)
+      : mulx_correct s' (Interp res).
+    Proof using Type. prove_correctness I. Qed.
 
-  Hint Rewrite
-       eval_select
-       Arithmetic.Primitives.mulx_correct
-       Arithmetic.Primitives.addcarryx_correct
-       Arithmetic.Primitives.subborrowx_correct
-       Arithmetic.Primitives.cmovznz_correct
-       Z.zselect_correct
-       using solve [ auto | congruence | solve_extra_bounds_side_conditions ] : push_eval.
+    Strategy -1000 [addcarryx]. (* if we don't tell the kernel to unfold this early, then [Qed] seems to run off into the weeds *)
+    Lemma addcarryx_correct s' res
+          (Hres : addcarryx s' = Success res)
+      : addcarryx_correct s' (Interp res).
+    Proof using Type. prove_correctness I. Qed.
 
-  Strategy -1000 [mulx]. (* if we don't tell the kernel to unfold this early, then [Qed] seems to run off into the weeds *)
-  Lemma mulx_correct s' res
-        (Hres : mulx s' = Success res)
-    : mulx_correct s' (Interp res).
-  Proof using Type. prove_correctness I. Qed.
+    Strategy -1000 [subborrowx]. (* if we don't tell the kernel to unfold this early, then [Qed] seems to run off into the weeds *)
+    Lemma subborrowx_correct s' res
+          (Hres : subborrowx s' = Success res)
+      : subborrowx_correct s' (Interp res).
+    Proof using Type. prove_correctness I. Qed.
 
-  Strategy -1000 [addcarryx]. (* if we don't tell the kernel to unfold this early, then [Qed] seems to run off into the weeds *)
-  Lemma addcarryx_correct s' res
-        (Hres : addcarryx s' = Success res)
-    : addcarryx_correct s' (Interp res).
-  Proof using Type. prove_correctness I. Qed.
+    Strategy -1000 [cmovznz]. (* if we don't tell the kernel to unfold this early, then [Qed] seems to run off into the weeds *)
+    Lemma cmovznz_correct s' res
+          (Hres : cmovznz s' = Success res)
+      : cmovznz_correct s' (Interp res).
+    Proof using Type. prove_correctness I. Qed.
 
-  Strategy -1000 [subborrowx]. (* if we don't tell the kernel to unfold this early, then [Qed] seems to run off into the weeds *)
-  Lemma subborrowx_correct s' res
-        (Hres : subborrowx s' = Success res)
-    : subborrowx_correct s' (Interp res).
-  Proof using Type. prove_correctness I. Qed.
+    Lemma selectznz_correct limbwidth res
+          (Hres : selectznz = Success res)
+      : selectznz_correct (weight (Qnum limbwidth) (QDen limbwidth)) n saturated_bounds_list (Interp res).
+    Proof using Type. prove_correctness I. Qed.
 
-  Strategy -1000 [cmovznz]. (* if we don't tell the kernel to unfold this early, then [Qed] seems to run off into the weeds *)
-  Lemma cmovznz_correct s' res
-        (Hres : cmovznz s' = Success res)
-    : cmovznz_correct s' (Interp res).
-  Proof using Type. prove_correctness I. Qed.
-
-  Lemma selectznz_correct limbwidth res
-        (Hres : selectznz = Success res)
-    : selectznz_correct (weight (Qnum limbwidth) (QDen limbwidth)) n saturated_bounds_list (Interp res).
-  Proof using Type. prove_correctness I. Qed.
+  End KnownFunctions.
 
   Section for_stringification.
     Context (valid_names : string)
@@ -791,7 +796,8 @@ Section __.
                                          (option
                                             (string *
                                              Pipeline.ErrorT
-                                               (list string * ToString.C.ident_infos)))).
+                                               (list string * ToString.C.ident_infos))))
+            (backend : PrettyPrint.Backend).
 
     Definition aggregate_infos {A B C} (ls : list (A * ErrorT B (C * ToString.C.ident_infos))) : ToString.C.ident_infos
       := fold_right
@@ -807,19 +813,19 @@ Section __.
     Definition extra_synthesis (function_name_prefix : string) (infos : ToString.C.ident_infos)
       : list (string * Pipeline.ErrorT (list string)) * PositiveSet.t
       := let ls_addcarryx := List.flat_map
-                               (fun lg_split:positive => [saddcarryx function_name_prefix lg_split; ssubborrowx function_name_prefix lg_split])
+                               (fun lg_split:positive => [saddcarryx backend function_name_prefix lg_split;
+                                                          ssubborrowx backend function_name_prefix lg_split])
                                (PositiveSet.elements (ToString.C.addcarryx_lg_splits infos)) in
          let ls_mulx := List.map
-                          (fun lg_split:positive => smulx function_name_prefix lg_split)
+                          (fun lg_split:positive => smulx backend function_name_prefix lg_split)
                           (PositiveSet.elements (ToString.C.mulx_lg_splits infos)) in
          let ls_cmov := List.map
-                          (fun bitwidth:positive => scmovznz function_name_prefix bitwidth)
+                          (fun bitwidth:positive => scmovznz backend function_name_prefix bitwidth)
                           (PositiveSet.elements (ToString.C.cmovznz_bitwidths infos)) in
          let ls := ls_addcarryx ++ ls_mulx ++ ls_cmov in
          let infos := aggregate_infos ls in
          (List.map (fun '(name, res) => (name, (res <- res; Success (fst res))%error)) ls,
           ToString.C.bitwidths_used infos).
-
 
     Definition synthesize_of_name (function_name_prefix : string) (name : string)
       : string * ErrorT Pipeline.ErrorMessage (list string * ToString.C.ident_infos)
@@ -839,7 +845,7 @@ Section __.
               ++ extra_special_synthesis name).
 
     (** Note: If you change the name or type signature of this
-          function, you will need to update the code in CLI.v *)
+        function, you will need to update the code in CLI.v *)
     Definition Synthesize (comment_header : list string) (function_name_prefix : string) (requests : list string)
       : list string (* comment header *) * list (string * Pipeline.ErrorT (list string)) * PositiveSet.t (* types used *)
       := let ls := match requests with

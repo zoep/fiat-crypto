@@ -14,6 +14,7 @@ Require Import Crypto.Util.ZUtil.Tactics.PullPush.Modulo.
 Require Import Crypto.Util.ZUtil.Tactics.RewriteModSmall.
 Require Import Crypto.Language.
 Require Import Crypto.CStringification.
+Require Import Crypto.PrintingCommon.
 Require Import Crypto.Arithmetic.Core.
 Require Import Crypto.Arithmetic.FancyMontgomeryReduction.
 Require Import Crypto.BoundsPipeline.
@@ -155,10 +156,10 @@ Section rmontred.
          (bound, (bound, tt))
          bound.
 
-  Definition smontred (prefix : string)
+  Definition smontred (backend : PrettyPrint.Backend) (prefix : string)
     : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
     := Eval cbv beta in
-        FromPipelineToString
+        FromPipelineToString backend
           prefix "montred" montred
           (fun _ _ _ => @nil string).
 

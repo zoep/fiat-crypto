@@ -2343,25 +2343,7 @@ Module Compilers.
              => inr ("Errors in converting " ++ name ++ " to C:" ++ String.NewLine ++ String.concat String.NewLine errs)%string
            end.
 
-      Definition LinesToString (lines : list string)
-        : string
-        := String.concat String.NewLine lines.
-
-      Definition ToFunctionString (do_bounds_check : bool) (static : bool) (prefix : string) (name : string)
-                 {t}
-                 (e : @Compilers.expr.Expr base.type ident.ident t)
-                 (comment : type.for_each_lhs_of_arrow var_data t -> var_data (type.final_codomain t) -> list string)
-                 (name_list : option (list string))
-                 (inbounds : type.for_each_lhs_of_arrow ZRange.type.option.interp t)
-                 (outbounds : ZRange.type.option.interp (type.final_codomain t))
-        : (string * ident_infos) + string
-        := match ToFunctionLines do_bounds_check static prefix name e comment name_list inbounds outbounds with
-           | inl (ls, used_types) => inl (LinesToString ls, used_types)
-           | inr err => inr err
-           end.
     End C.
     Notation ToFunctionLines := C.ToFunctionLines.
-    Notation ToFunctionString := C.ToFunctionString.
-    Notation LinesToString := C.LinesToString.
   End ToString.
 End Compilers.

@@ -29,6 +29,7 @@ Require Import Crypto.Arithmetic.ModOps.
 Require Import Crypto.Arithmetic.Partition.
 Require Import Crypto.Arithmetic.Freeze.
 Require Import Crypto.BoundsPipeline.
+Require Import Crypto.PrintingCommon.
 Require Import Crypto.COperationSpecifications.
 Require Import Crypto.UnsaturatedSolinasHeuristics.
 Require Import Crypto.PushButtonSynthesis.ReificationCache.
@@ -251,238 +252,244 @@ Section __.
           correctness)
          (only parsing, at level 10, summary at next level, correctness at next level).
 
-  Definition carry_mul
-    := Pipeline.BoundsPipeline
-         false (* subst01 *)
-         None (* fancy *)
-         possible_values
-         (reified_carry_mul_gen
-            @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n @ GallinaReify.Reify idxs)
-         (Some loose_bounds, (Some loose_bounds, tt))
-         (Some tight_bounds).
+  Section KnownFunctions.
 
-  Definition scarry_mul (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix "carry_mul" carry_mul
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " multiplies two field elements and reduces the result."]%string)
-             (carry_mul_correct weightf n m tight_bounds loose_bounds)).
+    Context (backend : PrettyPrint.Backend).
 
-  Definition carry_square
-    := Pipeline.BoundsPipeline
-         false (* subst01 *)
-         None (* fancy *)
-         possible_values
-         (reified_carry_square_gen
-            @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n @ GallinaReify.Reify idxs)
-         (Some loose_bounds, tt)
-         (Some tight_bounds).
+    Definition carry_mul
+      := Pipeline.BoundsPipeline
+           false (* subst01 *)
+           None (* fancy *)
+           possible_values
+           (reified_carry_mul_gen
+              @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n @ GallinaReify.Reify idxs)
+           (Some loose_bounds, (Some loose_bounds, tt))
+           (Some tight_bounds).
 
-  Definition scarry_square (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix "carry_square" carry_square
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " squares a field element and reduces the result."]%string)
-             (carry_square_correct weightf n m tight_bounds loose_bounds)).
+    Definition scarry_mul (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix "carry_mul" carry_mul
+            (docstring_with_summary_from_lemma!
+               (fun fname : string => ["The function " ++ fname ++ " multiplies two field elements and reduces the result."]%string)
+               (carry_mul_correct weightf n m tight_bounds loose_bounds)).
 
-  Definition carry_scmul_const (x : Z)
-    := Pipeline.BoundsPipeline
-         false (* subst01 *)
-         None (* fancy *)
-         possible_values
-         (reified_carry_scmul_gen
-            @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n @ GallinaReify.Reify idxs @ GallinaReify.Reify x)
-         (Some loose_bounds, tt)
-         (Some tight_bounds).
+    Definition carry_square
+      := Pipeline.BoundsPipeline
+           false (* subst01 *)
+           None (* fancy *)
+           possible_values
+           (reified_carry_square_gen
+              @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n @ GallinaReify.Reify idxs)
+           (Some loose_bounds, tt)
+           (Some tight_bounds).
 
-  Definition scarry_scmul_const (prefix : string) (x : Z)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix ("carry_scmul_" ++ decimal_string_of_Z x) (carry_scmul_const x)
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " multiplies a field element by " ++ decimal_string_of_Z x ++ " and reduces the result."]%string)
-             (carry_scmul_const_correct weightf n m tight_bounds loose_bounds x)).
+    Definition scarry_square (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix "carry_square" carry_square
+            (docstring_with_summary_from_lemma!
+              (fun fname : string => ["The function " ++ fname ++ " squares a field element and reduces the result."]%string)
+              (carry_square_correct weightf n m tight_bounds loose_bounds)).
 
-  Definition carry
-    := Pipeline.BoundsPipeline
-         true (* subst01 *)
-         None (* fancy *)
-         possible_values
-         (reified_carry_gen
-            @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n @ GallinaReify.Reify idxs)
-         (Some loose_bounds, tt)
-         (Some tight_bounds).
+    Definition carry_scmul_const (x : Z)
+      := Pipeline.BoundsPipeline
+           false (* subst01 *)
+           None (* fancy *)
+           possible_values
+           (reified_carry_scmul_gen
+              @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n @ GallinaReify.Reify idxs @ GallinaReify.Reify x)
+           (Some loose_bounds, tt)
+           (Some tight_bounds).
 
-  Definition scarry (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix "carry" carry
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " reduces a field element."]%string)
-             (carry_correct weightf n m tight_bounds loose_bounds)).
+    Definition scarry_scmul_const (prefix : string) (x : Z)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix ("carry_scmul_" ++ decimal_string_of_Z x) (carry_scmul_const x)
+            (docstring_with_summary_from_lemma!
+               (fun fname : string => ["The function " ++ fname ++ " multiplies a field element by " ++ decimal_string_of_Z x ++ " and reduces the result."]%string)
+               (carry_scmul_const_correct weightf n m tight_bounds loose_bounds x)).
 
-  Definition add
-    := Pipeline.BoundsPipeline
-         true (* subst01 *)
-         None (* fancy *)
-         possible_values
-         (reified_add_gen
-            @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify n)
-         (Some tight_bounds, (Some tight_bounds, tt))
-         (Some loose_bounds).
+    Definition carry
+      := Pipeline.BoundsPipeline
+           true (* subst01 *)
+           None (* fancy *)
+           possible_values
+           (reified_carry_gen
+              @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n @ GallinaReify.Reify idxs)
+           (Some loose_bounds, tt)
+           (Some tight_bounds).
 
-  Definition sadd (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix "add" add
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " adds two field elements."]%string)
-             (add_correct weightf n m tight_bounds loose_bounds)).
+    Definition scarry (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix "carry" carry
+            (docstring_with_summary_from_lemma!
+               (fun fname : string => ["The function " ++ fname ++ " reduces a field element."]%string)
+               (carry_correct weightf n m tight_bounds loose_bounds)).
 
-  Definition sub
-    := Pipeline.BoundsPipeline
-         true (* subst01 *)
-         None (* fancy *)
+    Definition add
+      := Pipeline.BoundsPipeline
+           true (* subst01 *)
+           None (* fancy *)
+           possible_values
+           (reified_add_gen
+              @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify n)
+           (Some tight_bounds, (Some tight_bounds, tt))
+           (Some loose_bounds).
+
+    Definition sadd (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix "add" add
+            (docstring_with_summary_from_lemma!
+              (fun fname : string => ["The function " ++ fname ++ " adds two field elements."]%string)
+              (add_correct weightf n m tight_bounds loose_bounds)).
+
+    Definition sub
+      := Pipeline.BoundsPipeline
+           true (* subst01 *)
+           None (* fancy *)
          possible_values
          (reified_sub_gen
             @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n @ GallinaReify.Reify coef)
          (Some tight_bounds, (Some tight_bounds, tt))
          (Some loose_bounds).
 
-  Definition ssub (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix "sub" sub
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " subtracts two field elements."]%string)
-             (sub_correct weightf n m tight_bounds loose_bounds)).
+    Definition ssub (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix "sub" sub
+            (docstring_with_summary_from_lemma!
+              (fun fname : string => ["The function " ++ fname ++ " subtracts two field elements."]%string)
+              (sub_correct weightf n m tight_bounds loose_bounds)).
 
-  Definition opp
-    := Pipeline.BoundsPipeline
-         true (* subst01 *)
-         None (* fancy *)
-         possible_values
-         (reified_opp_gen
-            @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n @ GallinaReify.Reify coef)
-         (Some tight_bounds, tt)
-         (Some loose_bounds).
+    Definition opp
+      := Pipeline.BoundsPipeline
+           true (* subst01 *)
+           None (* fancy *)
+           possible_values
+           (reified_opp_gen
+              @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n @ GallinaReify.Reify coef)
+           (Some tight_bounds, tt)
+           (Some loose_bounds).
 
-  Definition sopp (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix "opp" opp
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " negates a field element."]%string)
-             (opp_correct weightf n m tight_bounds loose_bounds)).
+    Definition sopp (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix "opp" opp
+            (docstring_with_summary_from_lemma!
+               (fun fname : string => ["The function " ++ fname ++ " negates a field element."]%string)
+               (opp_correct weightf n m tight_bounds loose_bounds)).
 
-  Definition to_bytes
-    := Pipeline.BoundsPipeline
-         false (* subst01 *)
-         None (* fancy *)
-         possible_values_with_bytes
-         (reified_to_bytes_gen
-            @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify n @ GallinaReify.Reify machine_wordsize @ GallinaReify.Reify m_enc)
-         (Some tight_bounds, tt)
-         prime_bytes_bounds.
+    Definition to_bytes
+      := Pipeline.BoundsPipeline
+           false (* subst01 *)
+           None (* fancy *)
+           possible_values_with_bytes
+           (reified_to_bytes_gen
+              @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify n @ GallinaReify.Reify machine_wordsize @ GallinaReify.Reify m_enc)
+           (Some tight_bounds, tt)
+           prime_bytes_bounds.
 
-  Definition sto_bytes (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix "to_bytes" to_bytes
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " serializes a field element to bytes in little-endian order."]%string)
-             (to_bytes_correct weightf n n_bytes m tight_bounds)).
+    Definition sto_bytes (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix "to_bytes" to_bytes
+            (docstring_with_summary_from_lemma!
+               (fun fname : string => ["The function " ++ fname ++ " serializes a field element to bytes in little-endian order."]%string)
+               (to_bytes_correct weightf n n_bytes m tight_bounds)).
 
-  Definition from_bytes
-    := Pipeline.BoundsPipeline
-         false (* subst01 *)
-         None (* fancy *)
-         possible_values_with_bytes
-         (reified_from_bytes_gen
-            @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify n)
-         (prime_bytes_bounds, tt)
-         (Some tight_bounds).
+    Definition from_bytes
+      := Pipeline.BoundsPipeline
+           false (* subst01 *)
+           None (* fancy *)
+           possible_values_with_bytes
+           (reified_from_bytes_gen
+              @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify n)
+           (prime_bytes_bounds, tt)
+           (Some tight_bounds).
 
-  Definition sfrom_bytes (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix "from_bytes" from_bytes
-          (docstring_with_summary_from_lemma!
-             (fun fname : string => ["The function " ++ fname ++ " deserializes a field element from bytes in little-endian order."]%string)
-             (from_bytes_correct weightf n n_bytes m s tight_bounds)).
+    Definition sfrom_bytes (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix "from_bytes" from_bytes
+            (docstring_with_summary_from_lemma!
+              (fun fname : string => ["The function " ++ fname ++ " deserializes a field element from bytes in little-endian order."]%string)
+              (from_bytes_correct weightf n n_bytes m s tight_bounds)).
 
-  Definition encode
-    := Pipeline.BoundsPipeline
-         true (* subst01 *)
-         None (* fancy *)
-         possible_values
-         (reified_encode_gen
-            @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n)
-         (prime_bound, tt)
-         (Some tight_bounds).
+    Definition encode
+      := Pipeline.BoundsPipeline
+           true (* subst01 *)
+           None (* fancy *)
+           possible_values
+           (reified_encode_gen
+              @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n)
+           (prime_bound, tt)
+           (Some tight_bounds).
 
-  Definition sencode (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix "encode" encode
+    Definition sencode (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix "encode" encode
           (docstring_with_summary_from_lemma!
              (fun fname : string => ["The function " ++ fname ++ " encodes an integer as a field element."]%string)
              (encode_correct weightf n m tight_bounds)).
 
-  Definition zero
-    := Pipeline.BoundsPipeline
-         true (* subst01 *)
-         None (* fancy *)
-         possible_values
-         (reified_zero_gen
-            @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n)
-         tt
-         (Some tight_bounds).
+    Definition zero
+      := Pipeline.BoundsPipeline
+           true (* subst01 *)
+           None (* fancy *)
+           possible_values
+           (reified_zero_gen
+              @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n)
+           tt
+           (Some tight_bounds).
 
-  Definition szero (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix "zero" zero
-          (docstring_with_summary_from_lemma!
-             (fun fname => ["The function " ++ fname ++ " returns the field element zero."]%string)
-             (zero_correct weightf n m tight_bounds)).
+    Definition szero (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix "zero" zero
+            (docstring_with_summary_from_lemma!
+              (fun fname => ["The function " ++ fname ++ " returns the field element zero."]%string)
+              (zero_correct weightf n m tight_bounds)).
 
-  Definition one
-    := Pipeline.BoundsPipeline
-         true (* subst01 *)
-         None (* fancy *)
-         possible_values
-         (reified_one_gen
-            @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n)
-         tt
-         (Some tight_bounds).
+    Definition one
+      := Pipeline.BoundsPipeline
+           true (* subst01 *)
+           None (* fancy *)
+           possible_values
+           (reified_one_gen
+              @ GallinaReify.Reify (Qnum limbwidth) @ GallinaReify.Reify (Z.pos (Qden limbwidth)) @ GallinaReify.Reify s @ GallinaReify.Reify c @ GallinaReify.Reify n)
+           tt
+           (Some tight_bounds).
 
-  Definition sone (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Eval cbv beta in
-        FromPipelineToString
-          prefix "one" one
-          (docstring_with_summary_from_lemma!
-             (fun fname => ["The function " ++ fname ++ " returns the field element one."]%string)
-             (one_correct weightf n m tight_bounds)).
+    Definition sone (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Eval cbv beta in
+          FromPipelineToString backend
+            prefix "one" one
+            (docstring_with_summary_from_lemma!
+              (fun fname => ["The function " ++ fname ++ " returns the field element one."]%string)
+              (one_correct weightf n m tight_bounds)).
 
-  Definition selectznz : Pipeline.ErrorT _ := Primitives.selectznz n machine_wordsize.
-  Definition sselectznz (prefix : string)
-    : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
-    := Primitives.sselectznz n machine_wordsize prefix.
+    Definition selectznz : Pipeline.ErrorT _ := Primitives.selectznz n machine_wordsize.
+    Definition sselectznz (prefix : string)
+      : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
+      := Primitives.sselectznz n machine_wordsize backend prefix.
+
+  End KnownFunctions.
 
   Local Ltac solve_extra_bounds_side_conditions :=
     cbn [lower upper fst snd] in *; Bool.split_andb; Z.ltb_to_lt; lia.
@@ -651,36 +658,36 @@ Section __.
     Local Open Scope string_scope.
     Local Open Scope list_scope.
 
-    Definition known_functions
-      := [("carry_mul", scarry_mul);
-            ("carry_square", scarry_square);
-            ("carry", scarry);
-            ("add", sadd);
-            ("sub", ssub);
-            ("opp", sopp);
-            ("selectznz", sselectznz);
-            ("to_bytes", sto_bytes);
-            ("from_bytes", sfrom_bytes)].
+    Definition known_functions backend
+      := [("carry_mul", scarry_mul backend);
+            ("carry_square", scarry_square backend);
+            ("carry", scarry backend);
+            ("add", sadd backend);
+            ("sub", ssub backend);
+            ("opp", sopp backend);
+            ("selectznz", sselectznz backend);
+            ("to_bytes", sto_bytes backend);
+            ("from_bytes", sfrom_bytes backend)].
 
-    Definition valid_names : string
-      := Eval compute in String.concat ", " (List.map (@fst _ _) known_functions) ++ ", or 'carry_scmul' followed by a decimal literal".
+    Definition valid_names backend : string
+      := Eval compute in String.concat ", " (List.map (@fst _ _) (known_functions backend)) ++ ", or 'carry_scmul' followed by a decimal literal".
 
-    Definition extra_special_synthesis (function_name_prefix : string) (name : string)
+    Definition extra_special_synthesis (backend : PrettyPrint.Backend) (function_name_prefix : string) (name : string)
       : list (option (string * Pipeline.ErrorT (list string * ToString.C.ident_infos)))
       := [if prefix "carry_scmul" name
           then let sc := substring (String.length "carry_scmul") (String.length name) name in
                let scZ := Z_of_decimal_string sc in
                if string_beq sc (decimal_string_of_Z scZ)
-               then Some (scarry_scmul_const function_name_prefix scZ)
+               then Some (scarry_scmul_const backend function_name_prefix scZ)
                else None
           else None].
 
     (** Note: If you change the name or type signature of this
           function, you will need to update the code in CLI.v *)
-    Definition Synthesize (function_name_prefix : string) (requests : list string)
+    Definition Synthesize (backend : PrettyPrint.Backend) (function_name_prefix : string) (requests : list string)
       : list string * list (string * Pipeline.ErrorT (list string)) * PositiveSet.t (* types used *)
       := Primitives.Synthesize
-           machine_wordsize valid_names known_functions (extra_special_synthesis function_name_prefix)
+           machine_wordsize (valid_names backend) (known_functions backend) (extra_special_synthesis backend function_name_prefix) backend
            ["/* Computed values: */";
               "/* carry_chain = " ++ show false idxs ++ " */";
               ""]%string

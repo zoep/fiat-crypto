@@ -3,8 +3,8 @@ From Coq Require Import QArith.QArith ZArith.ZArith
 From Crypto.Util.Strings
      Require Import Decimal HexString ParseArithmetic
      ParseArithmeticToTaps Show.
-From Crypto Require Import Util.Option Util.ErrorT
-     UnsaturatedSolinasHeuristics CStringification BoundsPipeline.
+From Crypto Require Import Util.Option Util.ErrorT Rust
+     UnsaturatedSolinasHeuristics CStringification BoundsPipeline PrintingCommon.
 From Crypto.PushButtonSynthesis Require SaturatedSolinas
      UnsaturatedSolinas WordByWordMontgomery.
 
@@ -55,6 +55,7 @@ Module ForExtraction.
   (* Record for the current CLI options, indexed my the synthesis mode *)
   Record CLI_options (m : Mode) :=
     MkOptions {
+        backend : CLI_option Backend;
         curve_description : string;
         mode_options : Mode_options m;
         machine_wordsize : CLI_option Z;
@@ -64,6 +65,11 @@ Module ForExtraction.
   Definition CLIError := ErrorT (list string).
 
   (* Argument-parsing functions *)
+
+  Definition parse_backend (s : string) : option Backend :=
+    if s =? "Rust" then Some Rust
+    else if s =? "C" then Some C
+    else None.
 
   Definition parse_neg (s : string) : string * Z
     := match s with
@@ -139,6 +145,8 @@ Module ForExtraction.
 
 
   (* Help printing *)
+  Definition backend_help
+    := " backend                  Choice of target (C or Rust).)".
   Definition curve_description_help
     := "  curve_description       A string which will be prefixed to every function name generated".
   Definition n_help
@@ -169,47 +177,49 @@ Module ForExtraction.
         | WordByWordMontgomery => " curve_description m machine_wordsize [function_to_synthesize*]"
         end in
     let options_help :=
-        ([""; curve_description_help] ++ [mode_usage] ++
-         [machine_wordsize_help; function_to_synthesize_help (WordByWordMontgomery.valid_names); ""])%list in
+        ([""; backend_help; curve_description_help] ++ [mode_usage] ++
+         [machine_wordsize_help; function_to_synthesize_help (WordByWordMontgomery.valid_names C); ""])%list in
     (["USAGE: " ++ prog ++ mode_usage;
       "Got " ++ show false (List.length args) ++ " arguments"]%string ++ options_help)%list.
 
 
   Open Scope error_scope.
 
-  (* Parses command line options and constructs a CLI_options record *)
-  Definition parse_CLI_options (mode : Mode) (argv : list string) : CLIError (CLI_options mode) :=
+  Definition parse_CLI_options (mode : Mode) (argv : list string) : ParseError (CLI_options mode) :=
     match mode with
     | UnsaturatedSolinas =>
       match argv with
       | [] => Error ["Error: Arguments cannot be empty"]
       | _ :: backend :: curve_description :: n :: sc :: machine_wordsize :: requests =>
+        backend_opt <- parse_CLI_option parse_backend backend "backend";
         n_opt <- parse_CLI_option parse_n n "n";
         sc_opt <- parse_CLI_option parse_sc sc "sc";
         mw_opt <- parse_CLI_option parse_machine_wordsize machine_wordsize "machine_wordsize";
         let mode_opt := MkUS n_opt sc_opt in
-        Success (MkOptions UnsaturatedSolinas curve_description mode_opt mw_opt requests)
+        Success (MkOptions UnsaturatedSolinas backend_opt curve_description mode_opt mw_opt requests)
       | prog :: args => Error ("Error: Unrecognized arguments" :: print_help mode prog args)
       end
     | SaturatedSolinas =>
       match argv with
       | [] => Error ["Error: Arguments cannot be empty"]
       | _ :: backend :: curve_description :: sc :: machine_wordsize :: requests =>
+        backend_opt <- parse_CLI_option parse_backend backend "backend";
         sc_opt <- parse_CLI_option parse_sc sc "sc";
         mw_opt <- parse_CLI_option parse_machine_wordsize machine_wordsize "machine_wordsize";
         let mode_opt := MkSS sc_opt in
-        Success (MkOptions SaturatedSolinas curve_description mode_opt mw_opt requests)
+        Success (MkOptions SaturatedSolinas backend_opt curve_description mode_opt mw_opt requests)
       | prog :: args => Error ("Error: Unrecognized arguments" :: print_help mode prog args)
       end
     | WordByWordMontgomery =>
       match argv with
       | [] => Error ["Error: Arguments cannot be empty"]
       | _ :: backend :: curve_description :: m :: sc :: machine_wordsize :: requests =>
+        backend_opt <- parse_CLI_option parse_backend backend "backend";
         m_opt <- parse_CLI_option parse_m m "m";
         sc_opt <- parse_CLI_option parse_sc sc "sc";
         mw_opt <- parse_CLI_option parse_machine_wordsize machine_wordsize "machine_wordsize";
         let mode_opt := MkWbW m_opt in
-        Success (MkOptions WordByWordMontgomery curve_description mode_opt mw_opt requests)
+        Success (MkOptions WordByWordMontgomery backend_opt curve_description mode_opt mw_opt requests)
       | prog :: args => Error ("Error: Unrecognized arguments" :: print_help mode prog args)
       end
     end.
@@ -268,10 +278,14 @@ Module ForExtraction.
     let show_requests := match requests with nil => "(all)" | _ => String.concat ", " requests end in
     let (machine_wordsize, str_machine_wordsize) := machine_wordsize options in
     let suffix :=
-        let mk_header := ToString.C.String.typedef_header in
+        let mk_header :=
+            match val (backend options) with
+            | C => ToString.C.String.typedef_header
+            | Rust => Rust.typedef_header
+            end in
         (extra_comment ++ mk_header prefix types_used ++ [""])%list in
     let mode_options_err :=
-        match mode return CLI_options mode -> CLIError (list string) with
+        match mode return CLI_options mode -> ParseError (list string) with
         | UnsaturatedSolinas =>
           fun options =>
             let (n, str_n) := n (mode_options options) in
@@ -312,8 +326,9 @@ Module ForExtraction.
 
   (* Top-level synthesis dispatching *)
   Definition synthesize (mode : Mode) (options : CLI_options mode)
-    : CLIError (list (string * Pipeline.ErrorT (list string))) :=
+    : ParseError (list (string * Pipeline.ErrorT (list string))) :=
     let prefix := ("fiat_" ++ curve_description options ++ "_")%string in
+    let backend := val (backend options) in
     let requests := requests options in
     let (machine_wordsize, str_machine_wordsize) := machine_wordsize options in
     match mode return CLI_options mode -> _ with
@@ -323,7 +338,7 @@ Module ForExtraction.
         let 'MkOption (s, c) str_sc := sc_us (mode_options options) in
         limb_cnt <- get_limb_count s c machine_wordsize n;
         let '(extra_header_comment, res, types_used) :=
-            UnsaturatedSolinas.Synthesize limb_cnt s c machine_wordsize prefix requests in
+            UnsaturatedSolinas.Synthesize limb_cnt s c machine_wordsize backend prefix requests in
         header <- header options prefix extra_header_comment types_used;
         Success ([("check_args" ++ NewLine ++ String.concat NewLine header,
                    UnsaturatedSolinas.check_args limb_cnt s c machine_wordsize (ErrorT.Success header))%string]
@@ -332,7 +347,7 @@ Module ForExtraction.
       fun options =>
         let 'MkOption (s, c) str_sc := sc_ss (mode_options options) in
         let '(extra_header_comment, res, types_used) :=
-            SaturatedSolinas.Synthesize s c machine_wordsize prefix requests in
+            SaturatedSolinas.Synthesize s c machine_wordsize backend prefix requests in
         header <- header options prefix extra_header_comment types_used;
         Success ([("check_args" ++ NewLine ++ String.concat NewLine header,
                    SaturatedSolinas.check_args s c machine_wordsize (ErrorT.Success header))%string]
@@ -341,15 +356,14 @@ Module ForExtraction.
       fun options =>
         let (m, str_m) := m (mode_options options) in
         let '(extra_header_comment, res, types_used) :=
-            WordByWordMontgomery.Synthesize m machine_wordsize prefix requests in
+            WordByWordMontgomery.Synthesize m machine_wordsize backend prefix requests in
         header <- header options prefix extra_header_comment types_used;
         Success ([("check_args" ++ NewLine ++ String.concat NewLine header,
                    WordByWordMontgomery.check_args m machine_wordsize (ErrorT.Success header))%string]
                    ++ res)%list
     end options.
 
-
-  Definition generate (mode : Mode) (argv : list string) : CLIError (list string) :=
+  Definition generate (mode : Mode) (argv : list string) : ParseError (list string) :=
     options <- parse_CLI_options mode argv;
     res <- synthesize options;
     collect_results res.

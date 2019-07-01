@@ -26,6 +26,7 @@ Require Import Crypto.Arithmetic.Core.
 Require Import Crypto.Arithmetic.ModOps.
 Require Import Crypto.Arithmetic.Saturated.
 Require Import Crypto.BoundsPipeline.
+Require Import Crypto.PrintingCommon.
 Require Import Crypto.COperationSpecifications.
 Require Import Crypto.PushButtonSynthesis.ReificationCache.
 Require Import Crypto.PushButtonSynthesis.Primitives.
@@ -162,10 +163,10 @@ Section __.
          (Some boundsn, (Some boundsn, tt))
          (Some boundsn, None (* Should be: Some r[0~>0]%zrange, but bounds analysis is not good enough *) ).
 
-  Definition smul (prefix : string)
+  Definition smul (backend : PrettyPrint.Backend) (prefix : string)
     : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
     := Eval cbv beta in
-        FromPipelineToString
+        FromPipelineToString backend
           prefix "mul" mul
           (docstring_with_summary_from_lemma!
              (fun fname : string => ["The function " ++ fname ++ " multiplies two field elements."]%string)
@@ -190,17 +191,17 @@ Section __.
     Local Open Scope string_scope.
     Local Open Scope list_scope.
 
-    Definition known_functions
-      := [("mul", smul)].
+    Definition known_functions backend
+      := [("mul", smul backend)].
 
-    Definition valid_names : string := Eval compute in String.concat ", " (List.map (@fst _ _) known_functions).
+    Definition valid_names backend : string := Eval compute in String.concat ", " (List.map (@fst _ _) (known_functions backend)).
 
     (** Note: If you change the name or type signature of this
           function, you will need to update the code in CLI.v *)
-    Definition Synthesize (function_name_prefix : string) (requests : list string)
+    Definition Synthesize (backend : PrettyPrint.Backend) (function_name_prefix : string) (requests : list string)
       : list string * list (string * Pipeline.ErrorT (list string)) * PositiveSet.t (* types used *)
       := Primitives.Synthesize
-           machine_wordsize valid_names known_functions (fun _ => nil)
+           machine_wordsize (valid_names backend) (known_functions backend) (fun _ => nil) backend
            [] function_name_prefix requests.
   End for_stringification.
 End __.

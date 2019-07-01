@@ -33,6 +33,8 @@ Require Crypto.RewriterAll.
 Require Crypto.AbstractInterpretationWf.
 Require Crypto.AbstractInterpretationProofs.
 Require Import Crypto.Util.Notations.
+Require Import Crypto.PrintingCommon.
+
 Import ListNotations. Local Open Scope Z_scope.
 
 Import
@@ -333,6 +335,7 @@ Module Pipeline.
         => Error (Unsupported_casts_in_input E unsupported_casts)
       end.
 
+  (* Zoe : AFAIC this is not used by the CLI, so it can call C printing directly *)
   Definition BoundsPipelineToStrings
              (static : bool)
              (type_prefix : string)
@@ -385,7 +388,7 @@ Module Pipeline.
                   relax_zrange
                   E comment arg_bounds out_bounds in
        match E with
-       | Success (E, types_used) => Success (ToString.C.LinesToString E, types_used)
+       | Success (E, types_used) => Success (PrettyPrint.LinesToString E, types_used)
        | Error err => Error err
        end.
 
@@ -396,12 +399,12 @@ Module Pipeline.
     := ((fun a b c t E arg_bounds out_bounds result' (H : @Pipeline.BoundsPipeline a b c t E arg_bounds out_bounds = result') => out_bounds) _ _ _ _ _ _ _ result eq_refl)
          (only parsing).
 
-  Notation FromPipelineToString prefix name result
+  Notation FromPipelineToString backend prefix name result
     := (fun comment
         => ((prefix ++ name)%string,
             match result with
             | Success E'
-              => let E := ToString.C.ToFunctionLines
+              => let E := PrettyPrint.ToFunctionLines backend
                             true true (* static *) prefix (prefix ++ name)%string
                             E'
                             (comment (prefix ++ name)%string)

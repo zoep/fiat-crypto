@@ -7,6 +7,8 @@ src/BoundsPipeline.v
 src/CLI.v
 src/COperationSpecifications.v
 src/CStringification.v
+src/PpRust.v
+src/PrintingCommon.v
 src/CompilersTestCases.v
 src/Demo.v
 src/IdentifiersGENERATED.v

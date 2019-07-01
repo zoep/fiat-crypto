@@ -16,6 +16,7 @@ Require Import Crypto.Arithmetic.ModOps.
 Require Import Crypto.Arithmetic.Partition.
 Require Import Crypto.Arithmetic.UniformWeight.
 Require Import Crypto.BoundsPipeline.
+Require Import Crypto.PrintingCommon.
 Require Import Crypto.Fancy.Compiler.
 Require Import Crypto.COperationSpecifications.
 Require Import Crypto.PushButtonSynthesis.ReificationCache.
@@ -163,10 +164,10 @@ Section rbarrett_red.
          (bound, (bound, tt))
          bound.
 
-  Definition sbarrett_red (prefix : string)
+  Definition sbarrett_red (backend : PrettyPrint.Backend) (prefix : string)
     : string * (Pipeline.ErrorT (list string * ToString.C.ident_infos))
     := Eval cbv beta in
-        FromPipelineToString
+        FromPipelineToString backend
           prefix "barrett_red" barrett_red
           (fun _ _ _ => @nil string).
 
