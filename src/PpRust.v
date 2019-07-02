@@ -187,7 +187,7 @@ Module Rust.
          patterns, are that 1.) this variable will be an argument to a
          call that will store its result in this variable. 2.) this will
          have a non-pointer an integer type XXX initialize *)
-      "let mut " ++ name ++ ": " ++ primitive_type_to_string prefix t sz ++ ";"
+      "let mut " ++ name ++ ": " ++ primitive_type_to_string prefix t sz ++ " = 0;"
     | C.AssignNth name n val =>
       name ++ "[" ++ decimal_string_of_Z (Z.of_nat n) ++ "] = " ++ arith_to_string prefix val ++ ";"
     end.

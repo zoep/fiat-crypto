@@ -666,6 +666,7 @@ Module Compilers.
       Import type.Notations.
 
       Module int.
+        (* Zoe: Why log bitwidth? *)
         Inductive type := signed (lgbitwidth : nat) | unsigned (lgbitwidth : nat).
 
         Definition lgbitwidth_of (t : type) : nat
@@ -853,13 +854,11 @@ Module Compilers.
 
         Fixpoint base_var_names (t : base.type) : Set
           := match t with
-             | base.type.unit
-               => unit
+             | base.type.unit => unit
              | base.type.nat
              | base.type.bool
              | base.type.zrange
-             | base.type.option _
-               => Empty_set
+             | base.type.option _ => Empty_set
              | base.type.Z => string
              | base.type.prod A B => base_var_names A * base_var_names B
              | base.type.list A => string
@@ -921,10 +920,11 @@ Module Compilers.
             field), the value is converted to type int. Otherwise the
             value is converted to unsigned int. *)
         (** We assume a 32-bit [int] type *)
-        Definition integer_promote_type (t : int.type) : int.type
-          := if int.is_tighter_than t int32
-             then int32
-             else t.
+        Definition integer_promote_type (t : int.type) : int.type := t.
+        (* Zoe: Disabling promotion for now, to generate Rust code *)
+        (* := if int.is_tighter_than t int32 *)
+        (*    then int32 *)
+        (*    else t. *)
 
         (** Quoting
             http://en.cppreference.com/w/c/language/conversion:
@@ -989,7 +989,7 @@ Module Compilers.
                    signed operand, then the operand with the signed
                    type is implicitly converted to the unsigned type
                    *)
-             else if int.is_unsigned t1 && (rank t1 >=? rank t2) then
+             else if int.is_unsigned t1 && (rank t1 >=? rank t2) then (* Zoe: why not compare with is_tighter_than ? *)
                t1
              else if int.is_unsigned t2 && (rank t2 >=? rank t1) then
                t2
@@ -1102,16 +1102,42 @@ Module Compilers.
                  end
              end.
 
+        (* Zoe: This is useful for target languages without implicit
+           arithmetic conversions. TODO propagate flag to chose between
+           explicit and implicit conversions *)
+        Definition cast_operands_up (desired_type : option int.type)
+                   (args : arith_expr_for (base.type.Z * base.type.Z))
+          : arith_expr_for (base.type.Z * base.type.Z) :=
+           match desired_type with
+           | None =>
+             let '((e1, t1), (e2, t2)) := args in
+             match t1, t2 with
+             | None, _ | _, None => args
+             | Some t1', Some t2' =>
+               let lub := Some (common_type t1' t2') in
+               (Zcast_up_if_needed lub (e1, t1), Zcast_up_if_needed lub (e2, t2))
+             end
+           | Some desired_type' =>
+             let '((e1, t1), (e2, t2)) := args in
+             match t1, t2 with
+             | None, _ | _, None => args
+            | Some t1', Some t2' =>
+              let lub := Some (common_type desired_type' (common_type t1' t2')) in
+              (Zcast_up_if_needed lub (e1, t1), Zcast_up_if_needed lub (e2, t2))
+             end
+          end.
+
         Definition arith_bin_arith_expr_of_PHOAS_ident
                    (s:=(base.type.Z * base.type.Z)%etype)
                    (d:=base.type.Z)
                    (idc : ident (type.Z * type.Z) type.Z)
           : option int.type -> arith_expr_for s -> arith_expr_for d
-          := fun desired_type '((e1, t1), (e2, t2))
-             => let t1 := option_map integer_promote_type t1 in
-               let t2 := option_map integer_promote_type t2 in
+          := fun desired_type '((e1, t1), (e2, t2)) =>
+             (* No integer promotion in Rust. *)
+             (* =>let t1 := option_map integer_promote_type t1 in *)
+             (*   let t2 := option_map integer_promote_type t2 in *)
                let '((e1, t1), (e2, t2))
-                   := cast_bigger_up_if_needed desired_type ((e1, t1), (e2, t2)) in
+                   := cast_operands_up desired_type ((e1, t1), (e2, t2)) in
                let ct := (t1 <- t1; t2 <- t2; Some (common_type t1 t2))%option in
                Zcast_down_if_needed desired_type ((idc @@ (e1, e2))%Cexpr, ct).
 
@@ -1588,7 +1614,7 @@ Module Compilers.
                        => let r1 := option_map integer_promote_type r1 in
                          let r2 := option_map integer_promote_type r2 in
                          let '((e1, r1), (e2, r2))
-                             := cast_bigger_up_if_needed rout ((e1, r1), (e2, r2)) in
+                             := cast_operands_up rout ((e1, r1), (e2, r2)) in
                          let ct := (r1 <- r1; r2 <- r2; Some (common_type r1 r2))%option in
                          ty <- match ct, rout with
                               | Some ct, Some rout
