@@ -1,20 +1,8 @@
 From Coq Require Import ZArith.ZArith MSets.MSetPositive FSets.FMapPositive
      Strings.String Strings.Ascii Bool.Bool Lists.List.
-Require Import Crypto.Util.ListUtil Lists.List.
-Require Crypto.Util.Strings.String.
-Require Import Crypto.Util.Strings.Decimal.
-Require Import Crypto.Util.Strings.HexString.
-Require Import Crypto.Util.Strings.Show.
-Require Import Crypto.Util.ZRange.
-Require Import Crypto.Util.ZRange.Operations.
-Require Import Crypto.Util.ZRange.Show.
-Require Import Crypto.Util.Option.
-Require Import Crypto.Util.OptionList.
-Require Import Crypto.Language.
-Require Import Crypto.AbstractInterpretation.
-Require Import Crypto.Util.Bool.Equality.
-Require Import Crypto.Util.Notations.
-From Crypto Require Import CStringification.
+From Crypto.Util Require Import ListUtil Strings.String Strings.Decimal Strings.HexString
+     Strings.Show ZRange ZRange.Operations ZRange.Show Option OptionList Equality Notations.
+From Crypto Require Import CStringification Language AbstractInterpretation.
 
 Import ListNotations.
 
@@ -37,7 +25,7 @@ Module Rust.
                    "type " ++ prefix ++ "i1 = i8;" ]%string (* C: typedef signed char prefix_int1 *)
            else [])
        ++ (if PositiveSet.mem 128 bitwidths_used
-           then ["type" ++ prefix ++ "u128 = u128;"; (* Since 128 bit integers exists in (nightly) rust consider removing the *)
+           then ["type " ++ prefix ++ "u128 = u128;"; (* Since 128 bit integers exist in (nightly) rust consider removing the *)
                                                     (* type synonym and extending stdint_ditwidths *)
                    "type " ++ prefix ++ "i128 = i128;"]%string
            else []))%list.

@@ -1,5 +1,5 @@
 From Coq Require Import Strings.String. 
-From Crypto Require Import PpRust CStringification.
+From Crypto Require Import Rust CStringification.
 
 Import Crypto.Language.Compilers Crypto.Language.Compilers.defaults C.OfPHOAS.
 

@@ -148,17 +148,17 @@ Module ForExtraction.
   Definition backend_help
     := " backend                  Choice of target (C or Rust).)".
   Definition curve_description_help
-    := "  curve_description       A string which will be prefixed to every function name generated".
+    := " curve_description        A string which will be prefixed to every function name generated".
   Definition n_help
-    := "  n                       The number of limbs, or the literal '(auto)' or '(autoN)' for a non-negative number N, to automatically guess the number of limbs".
+    := " n                        The number of limbs, or the literal '(auto)' or '(autoN)' for a non-negative number N, to automatically guess the number of limbs".
   Definition sc_help
-    := "  s-c                     The prime, which must be expressed as a difference of a power of two and a small field element (e.g., '2^255 - 19', '2^448 - 2^224 - 1')".
+    := " s-c                      The prime, which must be expressed as a difference of a power of two and a small field element (e.g., '2^255 - 19', '2^448 - 2^224 - 1')".
   Definition m_help
-    := "  m                       The prime (e.g., '2^434 - (2^216*3^137 - 1)')".
+    := " m                        The prime (e.g., '2^434 - (2^216*3^137 - 1)')".
   Definition machine_wordsize_help
-    := "  machine_wordsize        The machine bitwidth (e.g., 32 or 64)".
+    := " machine_wordsize         The machine bitwidth (e.g., 32 or 64)".
   Definition function_to_synthesize_help (valid_names : string)
-    := "  function_to_synthesize  A space-separated list of functions that should be synthesized.  If no functions are given, all functions are synthesized."
+    := " function_to_synthesize   A space-separated list of functions that should be synthesized.  If no functions are given, all functions are synthesized."
          ++ String.NewLine ++
        "                            Valid options are " ++ valid_names.
 
