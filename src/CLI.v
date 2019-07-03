@@ -9,7 +9,7 @@ From Crypto.PushButtonSynthesis Require SaturatedSolinas
      UnsaturatedSolinas WordByWordMontgomery.
 
 Import ListNotations.
-Import CStringification.Compilers.
+Import CStringification.Compilers PrettyPrint.
 
 Local Open Scope Z_scope. Local Open Scope string_scope.
 
@@ -185,7 +185,7 @@ Module ForExtraction.
 
   Open Scope error_scope.
 
-  Definition parse_CLI_options (mode : Mode) (argv : list string) : ParseError (CLI_options mode) :=
+  Definition parse_CLI_options (mode : Mode) (argv : list string) : CLIError (CLI_options mode) :=
     match mode with
     | UnsaturatedSolinas =>
       match argv with
@@ -285,7 +285,7 @@ Module ForExtraction.
             end in
         (extra_comment ++ mk_header prefix types_used ++ [""])%list in
     let mode_options_err :=
-        match mode return CLI_options mode -> ParseError (list string) with
+        match mode return CLI_options mode -> CLIError (list string) with
         | UnsaturatedSolinas =>
           fun options =>
             let (n, str_n) := n (mode_options options) in
@@ -326,7 +326,7 @@ Module ForExtraction.
 
   (* Top-level synthesis dispatching *)
   Definition synthesize (mode : Mode) (options : CLI_options mode)
-    : ParseError (list (string * Pipeline.ErrorT (list string))) :=
+    : CLIError (list (string * Pipeline.ErrorT (list string))) :=
     let prefix := ("fiat_" ++ curve_description options ++ "_")%string in
     let backend := val (backend options) in
     let requests := requests options in
@@ -363,7 +363,7 @@ Module ForExtraction.
                    ++ res)%list
     end options.
 
-  Definition generate (mode : Mode) (argv : list string) : ParseError (list string) :=
+  Definition generate (mode : Mode) (argv : list string) : CLIError (list string) :=
     options <- parse_CLI_options mode argv;
     res <- synthesize options;
     collect_results res.
