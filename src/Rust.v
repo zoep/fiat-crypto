@@ -21,13 +21,13 @@ Module Rust.
   : list string :=
     ([imports]
        ++ (if PositiveSet.mem 1 bitwidths_used
-           then ["type " ++ prefix ++ "u1 = u8;"; (* C: typedef unsigned char prefix_uint1 *)
-                   "type " ++ prefix ++ "i1 = i8;" ]%string (* C: typedef signed char prefix_int1 *)
+           then ["pub type " ++ prefix ++ "u1 = u8;"; (* C: typedef unsigned char prefix_uint1 *)
+                   "pub type " ++ prefix ++ "i1 = i8;" ]%string (* C: typedef signed char prefix_int1 *)
            else [])
        ++ (if PositiveSet.mem 128 bitwidths_used
-           then ["type " ++ prefix ++ "u128 = u128;"; (* Since 128 bit integers exist in (nightly) rust consider removing the *)
+           then ["pub type " ++ prefix ++ "u128 = u128;"; (* Since 128 bit integers exist in (nightly) rust consider removing the *)
                                                     (* type synonym and extending stdint_ditwidths *)
-                   "type " ++ prefix ++ "i128 = i128;"]%string
+                   "pub type " ++ prefix ++ "i128 = i128;"]%string
            else []))%list.
 
   (* Supported integer bitwidths *)
@@ -55,7 +55,9 @@ Module Rust.
   Definition cast_literal (prefix : string) (t : C.int.type) : option string :=
     if Z.ltb (C.int.bitwidth_of t) 8
     then None
-    else Some (" as " ++ int_type_to_string prefix t)%string.
+    else None.
+    (* Zoe: Disable direct casts on literals for now *)
+    (* Some (" as " ++ int_type_to_string prefix t)%string. *)
 
 
   (* In fiat-crypto C functions are void and as such, they receive
@@ -277,7 +279,7 @@ Module Rust.
              (f : type.for_each_lhs_of_arrow var_data t * var_data (type.final_codomain t) * C.expr)
     : list string
     := let '(args, rets, body) := f in
-       ((if static then "fn " else "pub fn ") ++ name ++
+       ((if static then "pub fn " else "pub fn ") ++ name ++
          "(" ++ String.concat ", " (to_arg_list prefix Out rets ++ to_arg_list_for_each_lhs_of_arrow prefix args) ++
          ") -> () {")%string :: (List.map (fun s => "  " ++ s)%string (to_strings prefix body)) ++ ["}"%string]%list.
 
