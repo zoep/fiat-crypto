@@ -623,6 +623,7 @@ Module Compilers.
                              ++ [")"; show_application with_casts (fun _ => "") args 11%nat])%list),
                       ZRange.type.base.option.None)
              end args.
+
         Fixpoint show_var_expr {var t} (with_parens : bool) (e : @expr.expr base.type ident var t) : string
           := match e with
              | expr.Ident t idc => show with_parens idc
@@ -1095,35 +1096,33 @@ Module Compilers.
                => let '((e1, t1), (e2, t2)) := args in
                  match t1, t2 with
                  | None, _ | _, None => args
-                 | Some t1', Some t2'
-                   => if int.is_tighter_than t2' t1'
-                     then (Zcast_up_if_needed desired_type (e1, t1), (e2, t2))
-                     else ((e1, t1), Zcast_up_if_needed desired_type (e2, t2))
+                 | Some t1', Some t2' =>
+                   if int.is_tighter_than t2' t1'
+                   then (Zcast_up_if_needed desired_type (e1, t1), (e2, t2))
+                   else ((e1, t1), Zcast_up_if_needed desired_type (e2, t2))
                  end
              end.
 
         (* Zoe: This is useful for target languages without implicit
-           arithmetic conversions. TODO propagate flag to chose between
-           explicit and implicit conversions *)
+           arithmetic conversions. *)
         Definition cast_operands_up (desired_type : option int.type)
                    (args : arith_expr_for (base.type.Z * base.type.Z))
           : arith_expr_for (base.type.Z * base.type.Z) :=
-           match desired_type with
-           | None =>
-             let '((e1, t1), (e2, t2)) := args in
-             match t1, t2 with
-             | None, _ | _, None => args
-             | Some t1', Some t2' =>
-               let lub := Some (common_type t1' t2') in
-               (Zcast_up_if_needed lub (e1, t1), Zcast_up_if_needed lub (e2, t2))
-             end
+          match desired_type with
+          | None =>
+            let '((e1, t1), (e2, t2)) := args in
+            match t1, t2 with
+            | None, _ | _, None => args
+            | Some t1', Some t2' =>
+              let lub := Some (common_type t1' t2') in
+              (Zcast_up_if_needed lub (e1, t1), Zcast_up_if_needed lub (e2, t2))
+            end
            | Some desired_type' =>
              let '((e1, t1), (e2, t2)) := args in
              match t1, t2 with
              | None, _ | _, None => args
-            | Some t1', Some t2' =>
-              let lub := Some (common_type desired_type' (common_type t1' t2')) in
-              (Zcast_up_if_needed lub (e1, t1), Zcast_up_if_needed lub (e2, t2))
+             | Some t1', Some t2' =>
+               (Zcast_up_if_needed desired_type (e1, t1), Zcast_up_if_needed desired_type (e2, t2))
              end
           end.
 
