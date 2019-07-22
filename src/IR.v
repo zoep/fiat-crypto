@@ -431,8 +431,13 @@ Module Compilers.
                  | ident.pair A B
                    => fun _ _ _ => inr ["Invalid identifier in arithmetic expression " ++ show true idc]%string
                  | ident.Z_opp (* we pretend this is [0 - _] *)
-                   => fun r y => let zero := (literal 0 @@ TT, Some (int.of_zrange_relaxed r[0~>0])) in
-                                 ret (arith_bin_arith_expr_of_PHOAS_ident Z_sub r (zero, y))
+                   => fun r '(e, t) =>
+                        let zero := (literal 0 @@ TT, Some (int.of_zrange_relaxed r[0~>0])) in
+                        let '((e1, t1), (e2, t2)) :=
+                            bin_op_conversion (option_map int.signed_counterpart_of r)
+                                              ((e, t), zero) in
+                        let ct := (t1 <- t1; t2 <- t2; Some (common_type t1 t2))%option in
+                        ret (Zcast_down_if_needed r ((Z_sub @@ (e1, e2))%Cexpr, ct))
                  | ident.Literal _ v
                    => fun _ => ret v
                  | ident.Nat_succ
