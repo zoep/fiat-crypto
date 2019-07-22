@@ -432,6 +432,57 @@ Module Compilers.
                    => fun _ _ _ => inr ["Invalid identifier in arithmetic expression " ++ show true idc]%string
                  | ident.Z_opp (* we pretend this is [0 - _] *)
                    => fun r '(e, t) =>
+                        (* Zoe: This changes the previous way of handling
+                                arithmetic negation. In particular, before
+                                this change, this operation was handled
+                                similar to other binary operations (see
+                                [arith_bin_arith_expr_of_PHOAS_ident]). However,
+                                this cas causing an underflow in Rust (but
+                                no underflow -- i.e. wrapping mod 2 -- in
+                                C).
+
+                                In paricular in function
+                                [fiat_25519_subborrowx_u51], the following
+                                operation takes place:
+
+                                *out2 = (fiat_p224_uint1)(0x0 - x2);
+
+                                where x2 is an int1 and the desired type
+                                of the operation is uint1. The code will
+                                try to cast the operand up to the desired
+                                type, but because of integer promotion
+                                (that is, x2 will be promoted to int32)
+                                trying to upcast this to uint1 will have
+                                no effect at all and the operation will be
+                                carried out in a signed manner.
+
+                                Note that, if we were dealing with
+                                integers >= 32 bits then x2 would have
+                                been casted to uint32 and the subtraction
+                                would have been carried out in an unsigned
+                                manner, causing overflow/wrapping to
+                                happen. This would perhaps have still
+                                worked in C, but I am not sure if it's the
+                                desired behavior. (That's not manifested
+                                anywhere in the code right now as there's
+                                only two places where arithmetic negation
+                                happens and it only involves 1-bit
+                                integers).
+
+                                In Rust, however, there's no integer
+                                promotion and a coercion is inserted to x2
+                                in order to cast it to uint1 forcing the
+                                subtraction to happend in an unsigned
+                                manner and Rust to crash.
+
+                                For this reason I'm suggesting the
+                                following: the operands are not casted to
+                                the desired type, but to it's signed
+                                counterpart, then once the operation is
+                                performed the result is casted to the
+                                desired type. AFAICT this does't affect at
+                                all the C generated code but it fixes the
+                                problem we have with Rust. *)
                         let zero := (literal 0 @@ TT, Some (int.of_zrange_relaxed r[0~>0])) in
                         let '((e1, t1), (e2, t2)) :=
                             bin_op_conversion (option_map int.signed_counterpart_of r)
