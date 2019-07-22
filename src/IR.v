@@ -431,8 +431,28 @@ Module Compilers.
                  | ident.pair A B
                    => fun _ _ _ => inr ["Invalid identifier in arithmetic expression " ++ show true idc]%string
                  | ident.Z_opp (* we pretend this is [0 - _] *)
-                   => fun r y => let zero := (literal 0 @@ TT, Some (int.of_zrange_relaxed r[0~>0])) in
-                                 ret (arith_bin_arith_expr_of_PHOAS_ident Z_sub r (zero, y))
+                   (* Zoe : Changing this, see comment below *)
+                   => fun r y =>
+                        (* Zoe: What I'm trying to avoid by changing this,
+                                is to perform subtraction from 0 in Rust
+                                in with an insugned operend (Rust
+                                panicks at runtime when this happens).
+                                For instance, this piece of code works in
+                                C but not in Rust:
+
+                                fiat_25519_uint1 x1 = (!(!arg1));
+                                uint64_t x2 = ((fiat_25519_int1)(0x0 - x1) & UINT64_C(0xffffffffffffffff))
+
+                                I have not found a way to handle this
+                                uniformly with the binary operators (and
+                                that's why I'm changing this) as
+                                sometimes all three of the operand types
+                                and the desired type is usigned so there's
+                                really no way of knowing that this should
+                                be signed (e.g. last line of
+                                fiat_25519_subborrowx_u51). *)
+                        let '(e, ty) := un_op_conversion r y in
+                        ret (cast_down_if_needed r (Z_opp @@ e, ty))
                  | ident.Literal _ v
                    => fun _ => ret v
                  | ident.Nat_succ
